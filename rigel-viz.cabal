@@ -18,10 +18,11 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
-  exposed-modules:     Lib
+  exposed-modules:     Lucid.VegaLite
   build-depends:       base >= 4.7 && < 5
-                     , hvega
-                     , lucid
+                     , aeson >= 1.4.2.0
+                     , hvega >= 0.1.0.3
+                     , lucid >= 2.9.11
 
 executable rigel-viz
   default-language:    Haskell2010
