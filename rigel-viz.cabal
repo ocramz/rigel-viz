@@ -20,9 +20,12 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lucid.VegaLite
   build-depends:       base >= 4.7 && < 5
+                     , bytestring
                      , aeson >= 1.4.2.0
                      , hvega >= 0.1.0.3
                      , lucid >= 2.9.11
+                     , lucid-extras
+                     , text
 
 executable rigel-viz
   default-language:    Haskell2010
