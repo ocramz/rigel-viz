@@ -1,7 +1,7 @@
 name:                rigel-viz
 version:             0.1.0.0
-synopsis:            A high-level wrapper for vega-lite, via hvega
-description:         A high-level wrapper for vega-lite, via hvega. Please see the README for details
+synopsis:            A high-level wrapper for vega-lite
+description:         A high-level wrapper for vega-lite. Please see the README for details
 homepage:            https://github.com/ocramz/rigel-viz
 license:             BSD3
 license-file:        LICENSE
@@ -18,22 +18,21 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
-  exposed-modules:     Lucid.VegaLite
+  exposed-modules:     RigelViz
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , aeson >= 1.4.2.0
-                     , hvega >= 0.1.0.3
-                     , lucid >= 2.9.11
-                     , lucid-extras
+                     , lucid >= 2.9.11 
+                     , lucid-extras >= 0.2.2
                      , text
 
-executable rigel-viz
-  default-language:    Haskell2010
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  build-depends:       base
-                     , rigel-viz
+-- executable rigel-viz
+--   default-language:    Haskell2010
+--   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+--   hs-source-dirs:      app
+--   main-is:             Main.hs
+--   build-depends:       base
+--                      , rigel-viz
 
 test-suite spec
   default-language:    Haskell2010
