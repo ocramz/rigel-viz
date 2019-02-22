@@ -3,27 +3,22 @@ module RigelViz where
 
 import GHC.Generics (Generic(..))
 
-import Lucid
-import Lucid.PreEscaped (scriptSrc)
-import Lucid.VegaLite (mkVegaHtml)
-
 import qualified Data.Aeson as A
 import Data.Aeson ((.=))
 import qualified Data.Aeson.Encode.Pretty as A (encodePretty)
 
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T (decodeUtf8)
+import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
 
 -- import qualified Data.ByteString as BS hiding (pack)
 import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
--- import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy as LBS (toStrict)
 
 import Data.Monoid
 
-data TestValue = TV { tva :: Int, tvb :: Double } deriving (Eq, Show, Generic)
-instance A.ToJSON TestValue
-testVs = [TV 1 3.2, TV 2 5.4]
 
+toJSONText :: A.ToJSON a => a -> T.Text
+toJSONText e = T.decodeUtf8 $ LBS.toStrict $ A.encode e
 
 -- | The current schema version is 3
 schema :: Int -> String
@@ -38,6 +33,7 @@ data VLSpec a = VLSpec {
   } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (VLSpec a) where
   toJSON (VLSpec w h dats view) = case view of
+    VLayer vs -> A.object $ ("layer" .= map A.toJSON vs) : defs
     VSingle mark enc -> A.object $ [
         "mark" .= mark
       , "encoding" .= enc
@@ -50,41 +46,52 @@ instance A.ToJSON a => A.ToJSON (VLSpec a) where
         , "data" .= dats
         ]
 
-
+-- | Data source
 data Data a =
-    DataJSON [a]
-  | DataURL String deriving (Eq, Show, Generic)
+    DataJSON [a]  -- ^ Data rows
+  | DataURL String -- ^ Data from URI
+  deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
   toJSON = \case
     DataJSON vs -> A.object ["values" .= vs]
     DataURL u   -> A.object ["url" .= u]
 
 data View =
-    VSingle Mark Encoding
+    VSingle Mark [Encoding]
   | VLayer [View]
   deriving (Eq, Show, Generic)
 instance A.ToJSON View 
 
-data Mark = MPoint | MRect | MBar deriving (Eq, Show, Generic)
+data Mark = MPoint | MRect | MBar | MArea deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
   toJSON = \case
     MPoint -> "point"
-    MRect -> "rect"
-    MBar -> "bar"
+    MRect  -> "rect"
+    MBar   -> "bar"
+    MArea  -> "area"
 
-data Encoding = Enc { encName :: T.Text, encMd :: EncMetadata } deriving (Eq, Show, Generic)
+data Encoding = Enc { encChannel :: EncChannel, encMd :: EncMetadata } deriving (Eq, Show, Generic)
 instance A.ToJSON Encoding where
-  toJSON (Enc en emd) = A.object [en .= emd]
+  toJSON (Enc ec emd) = A.object [toJSONText ec .= emd]
 
-data EncMetadata = EncMetadata { emField :: String, emType :: EncodingType } deriving (Eq, Show, Generic)
+data EncChannel = X | Y | X2 | Y2 deriving (Eq, Show, Generic)
+instance A.ToJSON EncChannel where
+  toJSON = \case
+    X -> "x"
+    Y -> "y"
+    X2 -> "x2"
+    Y2 -> "y2"
+
+data EncMetadata = EncMetadata { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Generic)
 instance A.ToJSON EncMetadata where
   toJSON (EncMetadata f t) = A.object [ "field" .= f, "type" .= t]
 
-data EncodingType = ETNominal | ETQuantitative deriving (Eq, Show, Generic)
+data EncodingType = ETNominal | ETQuantitative | ETTemporal deriving (Eq, Show, Generic)
 instance A.ToJSON EncodingType where
   toJSON = \case
     ETNominal -> "nominal"
     ETQuantitative -> "quantitative"
+    ETTemporal -> "temporal"
 
 {-
 
