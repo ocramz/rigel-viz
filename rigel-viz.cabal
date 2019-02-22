@@ -22,6 +22,7 @@ library
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , aeson >= 1.4.2.0
+                     , aeson-pretty
                      , lucid >= 2.9.11 
                      , lucid-extras >= 0.2.2
                      , text
