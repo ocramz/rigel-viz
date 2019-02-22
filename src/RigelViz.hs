@@ -57,6 +57,7 @@ data Data a =
 instance A.ToJSON a => A.ToJSON (Data a) where
   toJSON = \case
     DataJSON vs -> A.object ["values" .= vs]
+    DataURL u   -> A.object ["url" .= u]
 
 data View =
     VSingle Mark Encoding
@@ -69,6 +70,7 @@ instance A.ToJSON Mark where
   toJSON = \case
     MPoint -> "point"
     MRect -> "rect"
+    MBar -> "bar"
 
 data Encoding = Enc { encName :: T.Text, encMd :: EncMetadata } deriving (Eq, Show, Generic)
 instance A.ToJSON Encoding where
