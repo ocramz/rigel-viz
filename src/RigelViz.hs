@@ -57,7 +57,7 @@ instance A.ToJSON a => A.ToJSON (Data a) where
     DataURL u   -> A.object ["url" .= u]
 
 data View =
-    VSingle Mark [Encoding]
+    VSingle Mark Encodings
   | VLayer [View]
   deriving (Eq, Show, Generic)
 instance A.ToJSON View 
@@ -70,17 +70,22 @@ instance A.ToJSON Mark where
     MBar   -> "bar"
     MArea  -> "area"
 
-data Encoding = Enc { encChannel :: EncChannel, encMd :: EncMetadata } deriving (Eq, Show, Generic)
-instance A.ToJSON Encoding where
-  toJSON (Enc ec emd) = A.object [toJSONText ec .= emd]
+data Encodings = Encs { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe EncMetadata, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata } deriving (Eq, Show, Generic)
+instance A.ToJSON Encodings where
+  toJSON (Encs ex ey ec ex2 ey2) = A.object ["x" .= ex, "y" .= ey]
 
-data EncChannel = X | Y | X2 | Y2 deriving (Eq, Show, Generic)
-instance A.ToJSON EncChannel where
-  toJSON = \case
-    X -> "x"
-    Y -> "y"
-    X2 -> "x2"
-    Y2 -> "y2"
+-- data Encoding = Enc { encChannel :: EncChannel, encMd :: EncMetadata } deriving (Eq, Show, Generic)
+-- instance A.ToJSON Encoding where
+--   toJSON (Enc ec emd) = A.object [toJSONText ec .= emd]
+
+-- data EncChannel = X | Y | Color| X2 | Y2 deriving (Eq, Show, Generic)
+-- instance A.ToJSON EncChannel where
+--   toJSON = \case
+--     X -> "x"
+--     Y -> "y"
+--     Color -> "color"
+--     X2 -> "x2"
+--     Y2 -> "y2"
 
 data EncMetadata = EncMetadata { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Generic)
 instance A.ToJSON EncMetadata where

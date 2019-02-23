@@ -14,8 +14,13 @@ main = renderToFile "asdf.html" $ mkVegaHtml vls0
 vls0 :: A.Value
 vls0 =
   A.toJSON $ VLSpec 400 300 (DataJSON testVs) $
-    VSingle MPoint [Enc X (EncMetadata "tva" ETQuantitative),
-                    Enc Y (EncMetadata "tvb" ETQuantitative)]
+    VSingle MPoint (
+       Encs (EncMetadata "tva" ETQuantitative)
+            (EncMetadata "tvb" ETQuantitative)
+            Nothing
+            Nothing
+            Nothing 
+       )
 
 data TestValue = TV { tva :: Int, tvb :: Double } deriving (Eq, Show, Generic)
 instance A.ToJSON TestValue
