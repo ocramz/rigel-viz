@@ -1,14 +1,39 @@
 {-# language OverloadedStrings, DeriveGeneric, LambdaCase #-}
+{-|
+Module      : RigelViz
+Description : Mid-level bindings to @vega-lite@
+Copyright   : (c) Marco Zocca, 2019
+License     : BSD3
+Maintainer  : ocramz fripost org
+Stability   : experimental
+Portability : POSIX
+
+
+A (mid-level, simplified, opinionated) Haskell wrapper for [vega-lite](https://vega.github.io/vega-lite/), currently targeting version 3 of the @vega-lite@ schema.
+
+== Aims / definitions
+
+* mid-level :
+
+    * types which can take one of a few possible values are represented by sum types, not by strings.
+
+    * glyph colours are encoded via the @colour@ Haskell library.
+
+* simplified : the generated @vega-lite@ JSON is not normalized, i.e. has some redundancies. This reflects the internal representation but also makes it easier to reason "locally" (i.e. code sections don't visibly exploit inheritance from higher layers).
+
+* opinionated : part of the @vega-lite@ API is not used at all. For example, there is no support for data preprocessing (e.g. summarization etc.). This forces the user to use the host language for preprocessing, which is bound to be more expressive and robust.
+
+-}
 module RigelViz (
   vegaLiteSpec, VLSpec,
   -- * Data sources
-  Data(..),
+  DataSource(..),
   -- * Layer
   layer,  LayerMetadata,
   -- * Mark 
   MarkType(..),
   -- * Data encoding options
-  EncSet, posEnc, Pos(..), colourEnc, colour, sizeEnc, EncodingType(..)) where
+  EncSet, posEnc, Pos(..), colourEnc, colour, size, sizeEnc, EncodingType(..)) where
 
 import qualified Data.Set as S
 import GHC.Generics (Generic(..))
@@ -36,7 +61,7 @@ schema vn = mconcat ["https://vega.github.io/schema/vega-lite/v", show vn,".json
 vegaLiteSpec ::
      Int  -- ^ Plot width
   -> Int  -- ^ Plot height
-  -> Data a -- ^ Data source
+  -> DataSource a -- ^ Data source
   -> [LayerMetadata]  -- ^ Plot layer encoding metadata
   -> VLSpec a
 vegaLiteSpec = VLSpec
@@ -47,7 +72,7 @@ vegaLiteSpec = VLSpec
 data VLSpec a = VLSpec {
     vlsWidth :: Int
   , vlsHeight :: Int
-  , vlsData :: Data a
+  , vlsData :: DataSource a
   , vlsView :: [LayerMetadata]
   } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (VLSpec a) where
@@ -61,11 +86,11 @@ instance A.ToJSON a => A.ToJSON (VLSpec a) where
         ]
 
 -- | Data source
-data Data a =
+data DataSource a =
     DataJSON [a]  -- ^ Data row type must have a 'A.ToJSON' instance
   | DataURI String -- ^ URI or filepath of dataset
   deriving (Eq, Show, Generic)
-instance A.ToJSON a => A.ToJSON (Data a) where
+instance A.ToJSON a => A.ToJSON (DataSource a) where
   toJSON = \case
     DataJSON vs -> A.object ["values" .= vs]
     DataURI u   -> A.object ["url" .= u]
@@ -82,7 +107,7 @@ layer m es = LayerMD (Mark m) es
 
 -- | Set of channel encoding options.
 --
--- Options are created with 'posEnc', 'colourEnc' / 'colour', 'sizeEnc' and can be added to an 'EncSet' via its 'Semigroup' instance
+-- Options are created with 'posEnc', 'colourEnc', 'colour', 'sizeEnc', 'size' and can be added to an 'EncSet' via its 'Semigroup' instance
 newtype EncSet  = EncSet (S.Set Encoding) deriving (Eq, Show, Generic)
 instance A.ToJSON EncSet where
   toJSON (EncSet es) = A.object $ S.foldr insf [] es where
@@ -120,6 +145,10 @@ sizeEnc :: T.Text -- ^ Field in the data source
   -> EncSet
 sizeEnc f t = singleton $ EsSize $ SizeEnc $ EncMD f t
 
+-- | Fixed size
+size :: Double -> EncSet
+size s = singleton $ EsSize $ SizeFixed s
+
 -- | Encoding channels for a layer
 data Encoding =
     EsPos Pos EncMetadata
@@ -141,18 +170,22 @@ data MarkType =
     MPoint  -- ^ "point"
   | MCircle -- ^ "circle"
   | MRect   -- ^ "rect"
+  | MSquare -- ^ "square"   
   | MBar    -- ^ "bar"
   | MArea   -- ^ "area"
   | MRule   -- ^ "rule"
+  | MLine   -- ^ "line"  
   deriving (Eq, Show, Generic)
 instance A.ToJSON MarkType where
   toJSON = \case
     MPoint  -> "point"
     MCircle -> "circle"
     MRect   -> "rect"
+    MSquare -> "square"    
     MBar    -> "bar"
     MArea   -> "area"
     MRule   -> "rule"
+    MLine   -> "line"
 
 data EncMetadata = EncMD { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Ord, Generic)
 instance A.ToJSON EncMetadata where

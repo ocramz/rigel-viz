@@ -42,7 +42,7 @@ vls1 = A.toJSON $ vegaLiteSpec 400 400 (DataJSON dats) [
 
 vls0 :: A.Value
 vls0 =
-  A.toJSON $ vegaLiteSpec 400 300 (DataJSON testVs) $ [
+  A.toJSON $ vegaLiteSpec 400 300 (DataJSON testVs) [
     layer MCircle (
        posEnc X "tv" Nominal <>
        posEnc Y "tvb" Quantitative <>
