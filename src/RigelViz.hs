@@ -98,6 +98,9 @@ data EncMetadata = EncMD { encField :: T.Text, emType :: EncodingType } deriving
 instance A.ToJSON EncMetadata where
   toJSON (EncMD f t) = A.object [ "field" .= f, "type" .= t]
 
+mkColourEnc :: T.Text -> EncodingType -> Colour
+mkColourEnc cFrom ety = ColourEnc (EncMD cFrom ety)
+
 data Colour =
     ColourFixed (C.Colour Double)
   | ColourEnc EncMetadata
@@ -106,6 +109,9 @@ instance A.ToJSON Colour where
   toJSON = \case
     ColourFixed c -> A.object ["value" .= C.sRGB24show c]
     ColourEnc emd -> A.toJSON emd
+
+mkSizeEnc :: T.Text -> EncodingType -> Size
+mkSizeEnc szFrom ety = SizeEnc (EncMD szFrom ety)
 
 data Size =
     SizeFixed Double
