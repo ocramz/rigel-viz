@@ -22,6 +22,7 @@ library
   build-depends:       base >= 4.7 && < 5
                      , bytestring
                      , colour
+                     , containers                     
                      , aeson >= 1.4.2.0
                      -- , lucid >= 2.9.11 
                      -- , lucid-extras >= 0.2.2
@@ -38,6 +39,7 @@ executable app1
                      , aeson
                      , aeson-pretty >= 0.8.7
                      , bytestring
+                     -- , containers
                      , colour
                      , lucid >= 2.9.11
                      , lucid-extras >= 0.2.2

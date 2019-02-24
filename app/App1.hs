@@ -27,12 +27,10 @@ vls0 :: A.Value
 vls0 =
   A.toJSON $ VLSpec 400 300 (DataJSON testVs) $ [
     LayerMD (Mark MCircle ) (
-       Enc (EncMD "tv" ETNominal)
-           (EncMD "tvb" ETQuantitative)
-           (Just (colourEnc "tvb" ETQuantitative))
-           Nothing
-           Nothing
-           (Just (sizeEnc "tvb" ETQuantitative))
+       posXEnc "tv" Nominal <>
+       posYEnc "tvb" Quantitative <>
+       colourEnc "tvb" Quantitative <>
+       sizeEnc "tvb" Quantitative
        )
     ]
 
