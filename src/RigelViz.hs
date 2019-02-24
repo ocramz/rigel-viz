@@ -23,6 +23,67 @@ A (mid-level, simplified, opinionated) Haskell wrapper for [vega-lite](https://v
 
 * opinionated : part of the @vega-lite@ API is not used at all. For example, there is no support for data preprocessing (e.g. summarization etc.). This forces the user to use the host language for preprocessing, which is bound to be more expressive and robust.
 
+== Examples
+
+These examples require @lucid@ and @lucid-extras@ (> 0.2.2): @lucid@ provides @renderToFile@ and @lucid-extras@ provides @mkVegaHtml@.
+
+=== Scatter plot
+
+<<doc/fig/scatter1.png>>
+
+@
+render0 :: IO ()
+render0 = 'renderToFile' "scatter.html" $ 'mkVegaHtml' $ 'A.toJSON' vls0
+
+vls0 :: 'VLSpec' TestValue
+vls0 =
+  'vegaLiteSpec' 400 300 ('DataJSON' testVs) [
+    'layer' 'MCircle' (
+       'posEnc' 'X' "tv" 'Nominal' <>
+       posEnc 'Y' "tvb" 'Quantitative' <>
+       'colourEnc' "tvb" Quantitative <>
+       'sizeEnc' "tvb" Quantitative
+       )
+    ]
+
+data TestValue = TV { tv :: T, tvb :: Double } deriving (Eq, Show, Generic)
+instance A.ToJSON TestValue
+data T = A | B | C deriving (Eq, Show, Generic)
+instance A.ToJSON T
+
+testVs :: [TestValue]
+testVs = [TV A 3.2, TV B 5.4, TV A 2.2, TV A 6.7, TV B 4.9]
+@
+
+
+=== Heatmap
+
+<<doc/fig/heatmap1.png>>
+
+@
+render0 :: IO ()
+render0 = 'renderToFile' "heatmap.html" $ 'mkVegaHtml' $ 'A.toJSON' vls1
+
+vls1 :: VLSpec (V3 Double)
+vls1 = vegaLiteSpec 400 400 (DataJSON dats) [
+  layer 'MRect' $
+      posEnc X "v3x" 'Ordinal' <>
+      posEnc Y "v3y" Ordinal  <>
+      colourEnc "v3z" Quantitative <>
+      sizeEnc "v3z" Quantitative
+
+data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
+instance A.ToJSON a => A.ToJSON (V3 a)
+
+dats :: [V3 Double]
+dats = [V3 x y (f x y) | x <- xs, y <- ys] where
+  xs = map (/10) [0, 1 .. 20]
+  ys = xs
+  f x y = sin $ 2 * pi * sqrt (x ** 2 + y ** 2)
+@
+
+
+
 -}
 module RigelViz (
   vegaLiteSpec, VLSpec,

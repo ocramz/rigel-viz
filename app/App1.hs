@@ -19,7 +19,7 @@ import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
 -- main = putStrLn "hello!"
 
-main = renderToFile "heatmap.html" $ mkVegaHtml vls1
+main = renderToFile "heatmap.html" $ mkVegaHtml $ A.toJSON vls1
 
 
 data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
@@ -31,7 +31,8 @@ dats = [V3 x y (f x y) | x <- xs, y <- ys] where
   ys = xs
   f x y = sin $ 2 * pi * sqrt (x ** 2 + y ** 2)
 
-vls1 = A.toJSON $ vegaLiteSpec 400 400 (DataJSON dats) [
+vls1 :: VLSpec (V3 Double)
+vls1 = vegaLiteSpec 400 400 (DataJSON dats) [
   layer MRect $
       posEnc X "v3x" Ordinal <>
       posEnc Y "v3y" Ordinal  <>
@@ -40,9 +41,9 @@ vls1 = A.toJSON $ vegaLiteSpec 400 400 (DataJSON dats) [
                                                  ]  
 
 
-vls0 :: A.Value
+vls0 :: VLSpec TestValue
 vls0 =
-  A.toJSON $ vegaLiteSpec 400 300 (DataJSON testVs) [
+  vegaLiteSpec 400 300 (DataJSON testVs) [
     layer MCircle (
        posEnc X "tv" Nominal <>
        posEnc Y "tvb" Quantitative <>
