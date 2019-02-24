@@ -70,7 +70,7 @@ instance A.ToJSON MarkType where
     MArea   -> "area"
     MRule   -> "rule"
 
-data Encoding = Enc { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe Colour, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata, encSz :: Maybe EncMetadata } deriving (Eq, Show, Generic)
+data Encoding = Enc { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe Colour, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata, encSz :: Maybe Size } deriving (Eq, Show, Generic)
 instance A.ToJSON Encoding where
   toJSON (Enc ex ey ec ex2 ey2 esz) = A.object $
       encMaybeKV "color" ec ++
@@ -96,6 +96,15 @@ instance A.ToJSON Colour where
   toJSON = \case
     ColourFixed c -> A.object ["value" .= C.sRGB24show c]
     ColourEnc emd -> A.toJSON emd
+
+data Size =
+    SizeFixed Double
+  | SizeEnc EncMetadata
+  deriving (Eq, Show, Generic)
+instance A.ToJSON Size where
+  toJSON = \case
+    SizeFixed sz -> A.object ["value" .= sz]
+    SizeEnc emd  -> A.toJSON emd
 
 data EncodingType = ETNominal | ETQuantitative | ETTemporal | ETOrdinal deriving (Eq, Show, Generic)
 instance A.ToJSON EncodingType where
