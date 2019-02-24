@@ -45,13 +45,14 @@ instance A.ToJSON a => A.ToJSON (VLSpec a) where
 -- | Data source
 data Data a =
     DataJSON [a]  -- ^ Data rows
-  | DataURL String -- ^ Data from URI
+  | DataURI String -- ^ Data from URI
   deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
   toJSON = \case
     DataJSON vs -> A.object ["values" .= vs]
-    DataURL u   -> A.object ["url" .= u]
+    DataURI u   -> A.object ["url" .= u]
 
+-- | Layer metadata
 data LayerMetadata = LayerMD Mark Encoding deriving (Eq, Show, Generic)
 instance A.ToJSON LayerMetadata where
   toJSON (LayerMD m e) = A.object ["mark" .= m, "encoding" .= e]
@@ -60,6 +61,7 @@ newtype Mark = Mark { mType :: MarkType } deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
   toJSON (Mark mty) = A.object ["type" .= mty]
 
+-- | Mark types
 data MarkType = MPoint | MCircle | MRect | MBar | MArea | MRule deriving (Eq, Show, Generic)
 instance A.ToJSON MarkType where
   toJSON = \case
@@ -70,7 +72,15 @@ instance A.ToJSON MarkType where
     MArea   -> "area"
     MRule   -> "rule"
 
-data Encoding = Enc { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe Colour, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata, encSz :: Maybe Size } deriving (Eq, Show, Generic)
+-- | Encoding channels for a layer
+data Encoding = Enc {
+    encsX :: EncMetadata        -- ^ "x" 
+  , encsY ::  EncMetadata       -- ^ "y" 
+  , encsColor :: Maybe Colour   -- ^ "color" 
+  , encsX2 :: Maybe EncMetadata -- ^ "x2" 
+  , encsY2 :: Maybe EncMetadata -- ^ "y2"
+  , encSz :: Maybe Size         -- ^ "size"
+  } deriving (Eq, Show, Generic)
 instance A.ToJSON Encoding where
   toJSON (Enc ex ey ec ex2 ey2 esz) = A.object $
       encMaybeKV "color" ec ++

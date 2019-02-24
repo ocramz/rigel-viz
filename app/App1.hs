@@ -29,10 +29,10 @@ vls0 =
     LayerMD (Mark MCircle ) (
        Enc (EncMD "tv" ETNominal)
            (EncMD "tvb" ETQuantitative)
-           (Just (ColourFixed C.blue))
+           (Just (ColourEnc (EncMD "tvb" ETQuantitative)))
            Nothing
            Nothing
-           Nothing
+           (Just (SizeEnc (EncMD "tvb" ETQuantitative)))
        )
     ]
 
@@ -42,4 +42,4 @@ data TestValue = TV { tv :: T, tvb :: Double } deriving (Eq, Show, Generic)
 instance A.ToJSON TestValue
 
 testVs :: [TestValue]
-testVs = [TV A 3.2, TV B 5.4, TV A 2.2, TV B 6.7, TV B 4.9]
+testVs = [TV A 3.2, TV B 5.4, TV A 2.2, TV A 6.7, TV B 4.9]
