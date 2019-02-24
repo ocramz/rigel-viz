@@ -29,10 +29,10 @@ vls0 =
     LayerMD (Mark MCircle ) (
        Enc (EncMD "tv" ETNominal)
            (EncMD "tvb" ETQuantitative)
-           (Just (ColourEnc (EncMD "tvb" ETQuantitative)))
+           (Just (colourEnc "tvb" ETQuantitative))
            Nothing
            Nothing
-           (Just (SizeEnc (EncMD "tvb" ETQuantitative)))
+           (Just (sizeEnc "tvb" ETQuantitative))
        )
     ]
 
