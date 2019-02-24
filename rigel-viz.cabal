@@ -21,10 +21,10 @@ library
   exposed-modules:     RigelViz
   build-depends:       base >= 4.7 && < 5
                      , bytestring
+                     , colour
                      , aeson >= 1.4.2.0
-                     , aeson-pretty >= 0.8.7
-                     , lucid >= 2.9.11 
-                     , lucid-extras >= 0.2.2
+                     -- , lucid >= 2.9.11 
+                     -- , lucid-extras >= 0.2.2
                      , text >= 1.2.3.1
 
 
@@ -36,8 +36,11 @@ executable app1
   build-depends:       base
                      , rigel-viz
                      , aeson
-                     , lucid
-                     , lucid-extras
+                     , aeson-pretty >= 0.8.7
+                     , bytestring
+                     , colour
+                     , lucid >= 2.9.11
+                     , lucid-extras >= 0.2.2
 
 
 -- executable rigel-viz

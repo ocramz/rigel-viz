@@ -5,16 +5,17 @@ import GHC.Generics (Generic(..))
 
 import qualified Data.Aeson as A
 import Data.Aeson ((.=))
-import qualified Data.Aeson.Encode.Pretty as A (encodePretty)
 
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T (encodeUtf8, decodeUtf8)
+import qualified Data.Text.Encoding as T (decodeUtf8)
 
 -- import qualified Data.ByteString as BS hiding (pack)
-import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
+-- import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 import qualified Data.ByteString.Lazy as LBS (toStrict)
 
-import Data.Monoid
+-- import Data.Monoid
+import qualified Data.Colour as C
+import qualified Data.Colour.SRGB as C (sRGB24show)
 
 
 toJSONText :: A.ToJSON a => a -> T.Text
@@ -29,15 +30,10 @@ data VLSpec a = VLSpec {
     vlsWidth :: Int
   , vlsHeight :: Int
   , vlsData :: Data a
-  , vlsView :: View
+  , vlsView :: [LayerMetadata]
   } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (VLSpec a) where
-  toJSON (VLSpec w h dats view) = case view of
-    VLayer vs -> A.object $ ("layer" .= map A.toJSON vs) : defs
-    VSingle mark enc -> A.object $ [
-        "mark" .= mark
-      , "encoding" .= enc
-      ] ++ defs
+  toJSON (VLSpec w h dats lms) = A.object $ ("layer" .= map A.toJSON lms) : defs
     where
       defs = [
         "$schema" .= schema 3
@@ -56,47 +52,51 @@ instance A.ToJSON a => A.ToJSON (Data a) where
     DataJSON vs -> A.object ["values" .= vs]
     DataURL u   -> A.object ["url" .= u]
 
-data View =
-    VSingle Mark Encodings
-  | VLayer [View]
-  deriving (Eq, Show, Generic)
-instance A.ToJSON View 
+data LayerMetadata = LayerMD Mark Encoding deriving (Eq, Show, Generic)
+instance A.ToJSON LayerMetadata where
+  toJSON (LayerMD m e) = A.object ["mark" .= m, "encoding" .= e]
 
-data Mark = MPoint | MRect | MBar | MArea deriving (Eq, Show, Generic)
+newtype Colour = Colour (C.Colour Double) deriving (Eq, Show, Generic)
+instance A.ToJSON Colour where
+  toJSON (Colour c) = A.String $ T.pack $ C.sRGB24show c
+  
+data Mark = Mark { mType :: MarkType, mColor :: Colour } deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
+  toJSON (Mark mty mcol) = A.object ["type" .= mty, "color" .= mcol]
+
+data MarkType = MPoint | MRect | MBar | MArea | MRule deriving (Eq, Show, Generic)
+instance A.ToJSON MarkType where
   toJSON = \case
     MPoint -> "point"
     MRect  -> "rect"
     MBar   -> "bar"
     MArea  -> "area"
+    MRule  -> "rule"
 
-data Encodings = Encs { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe EncMetadata, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata } deriving (Eq, Show, Generic)
-instance A.ToJSON Encodings where
-  toJSON (Encs ex ey ec ex2 ey2) = A.object ["x" .= ex, "y" .= ey]
+data Encoding = Enc { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe EncMetadata, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata } deriving (Eq, Show, Generic)
+instance A.ToJSON Encoding where
+  toJSON (Enc ex ey ec ex2 ey2) = A.object $
+      encMaybeKV "color" ec ++
+      encMaybeKV "x2" ex2 ++
+      encMaybeKV "y2" ey2 ++
+      def
+        where
+          def = ["x" .= ex, "y" .= ey]
 
--- data Encoding = Enc { encChannel :: EncChannel, encMd :: EncMetadata } deriving (Eq, Show, Generic)
--- instance A.ToJSON Encoding where
---   toJSON (Enc ec emd) = A.object [toJSONText ec .= emd]
+encMaybeKV :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]
+encMaybeKV k = maybe [] (\c -> [k .= c])
 
--- data EncChannel = X | Y | Color| X2 | Y2 deriving (Eq, Show, Generic)
--- instance A.ToJSON EncChannel where
---   toJSON = \case
---     X -> "x"
---     Y -> "y"
---     Color -> "color"
---     X2 -> "x2"
---     Y2 -> "y2"
-
-data EncMetadata = EncMetadata { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Generic)
+data EncMetadata = EncMD { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Generic)
 instance A.ToJSON EncMetadata where
-  toJSON (EncMetadata f t) = A.object [ "field" .= f, "type" .= t]
+  toJSON (EncMD f t) = A.object [ "field" .= f, "type" .= t]
 
-data EncodingType = ETNominal | ETQuantitative | ETTemporal deriving (Eq, Show, Generic)
+data EncodingType = ETNominal | ETQuantitative | ETTemporal | ETOrdinal deriving (Eq, Show, Generic)
 instance A.ToJSON EncodingType where
   toJSON = \case
-    ETNominal -> "nominal"
+    ETNominal      -> "nominal"
     ETQuantitative -> "quantitative"
-    ETTemporal -> "temporal"
+    ETTemporal     -> "temporal"
+    ETOrdinal      -> "ordinal"
 
 {-
 
