@@ -6,9 +6,11 @@
 
 A (mid-level, simplified, opinionated) Haskell wrapper for [`vega-lite`](https://vega.github.io/vega-lite/), currently targeting version 3 of the `vega-lite` schema.
 
-### Definitions
+### Aims / definitions
 
-* mid-level : types which can take one of a few possible values are represented by sum types, and not by strings
+* mid-level :
+  * types which can take one of a few possible values are represented by sum types, not by strings.
+  * glyph colours are encoded via the `colour` Haskell library
 
 * simplified : the generated `vega-lite` JSON is not normalized, i.e. has some redundancies. This reflects the internal representation but also makes it easier to reason "locally" (i.e. code sections don't visibly exploit inheritance from higher layers).
 

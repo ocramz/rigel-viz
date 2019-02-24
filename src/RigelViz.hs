@@ -56,29 +56,27 @@ data LayerMetadata = LayerMD Mark Encoding deriving (Eq, Show, Generic)
 instance A.ToJSON LayerMetadata where
   toJSON (LayerMD m e) = A.object ["mark" .= m, "encoding" .= e]
 
-newtype Colour = Colour (C.Colour Double) deriving (Eq, Show, Generic)
-instance A.ToJSON Colour where
-  toJSON (Colour c) = A.String $ T.pack $ C.sRGB24show c
-  
-data Mark = Mark { mType :: MarkType, mColor :: Colour } deriving (Eq, Show, Generic)
+newtype Mark = Mark { mType :: MarkType } deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
-  toJSON (Mark mty mcol) = A.object ["type" .= mty, "color" .= mcol]
+  toJSON (Mark mty) = A.object ["type" .= mty]
 
-data MarkType = MPoint | MRect | MBar | MArea | MRule deriving (Eq, Show, Generic)
+data MarkType = MPoint | MCircle | MRect | MBar | MArea | MRule deriving (Eq, Show, Generic)
 instance A.ToJSON MarkType where
   toJSON = \case
-    MPoint -> "point"
-    MRect  -> "rect"
-    MBar   -> "bar"
-    MArea  -> "area"
-    MRule  -> "rule"
+    MPoint  -> "point"
+    MCircle -> "circle"
+    MRect   -> "rect"
+    MBar    -> "bar"
+    MArea   -> "area"
+    MRule   -> "rule"
 
-data Encoding = Enc { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe EncMetadata, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata } deriving (Eq, Show, Generic)
+data Encoding = Enc { encsX :: EncMetadata, encsY ::  EncMetadata, encsColor :: Maybe Colour, encsX2 :: Maybe EncMetadata, encsY2 :: Maybe EncMetadata, encSz :: Maybe EncMetadata } deriving (Eq, Show, Generic)
 instance A.ToJSON Encoding where
-  toJSON (Enc ex ey ec ex2 ey2) = A.object $
+  toJSON (Enc ex ey ec ex2 ey2 esz) = A.object $
       encMaybeKV "color" ec ++
       encMaybeKV "x2" ex2 ++
       encMaybeKV "y2" ey2 ++
+      encMaybeKV "size" esz ++ 
       def
         where
           def = ["x" .= ex, "y" .= ey]
@@ -89,6 +87,15 @@ encMaybeKV k = maybe [] (\c -> [k .= c])
 data EncMetadata = EncMD { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Generic)
 instance A.ToJSON EncMetadata where
   toJSON (EncMD f t) = A.object [ "field" .= f, "type" .= t]
+
+data Colour =
+    ColourFixed (C.Colour Double)
+  | ColourEnc EncMetadata
+  deriving (Eq, Show, Generic)
+instance A.ToJSON Colour where
+  toJSON = \case
+    ColourFixed c -> A.object ["value" .= C.sRGB24show c]
+    ColourEnc emd -> A.toJSON emd
 
 data EncodingType = ETNominal | ETQuantitative | ETTemporal | ETOrdinal deriving (Eq, Show, Generic)
 instance A.ToJSON EncodingType where

@@ -26,12 +26,13 @@ main = renderToFile "asdf.html" $ mkVegaHtml vls0
 vls0 :: A.Value
 vls0 =
   A.toJSON $ VLSpec 400 300 (DataJSON testVs) $ [
-    LayerMD (Mark MPoint (Colour C.blue)) (
+    LayerMD (Mark MCircle ) (
        Enc (EncMD "tv" ETNominal)
            (EncMD "tvb" ETQuantitative)
+           (Just (ColourFixed C.blue))
            Nothing
            Nothing
-           Nothing 
+           Nothing
        )
     ]
 
