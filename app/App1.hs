@@ -27,14 +27,14 @@ instance A.ToJSON a => A.ToJSON (V3 a)
 
 dats :: [V3 Double]
 dats = [V3 x y (f x y) | x <- xs, y <- ys] where
-  xs = [0, 0.2 .. 2]
+  xs = map (/10) [0, 1 .. 20]
   ys = xs
-  f x y = sin $ sqrt (x ** 2 + y ** 2)
+  f x y = sin $ 2 * pi * sqrt (x ** 2 + y ** 2)
 
-vls1 = A.toJSON $ VLSpec 400 400 (DataJSON dats) [
-  LayerMD (Mark MCircle) $
-      posXEnc "v3x" Quantitative <>
-      posYEnc "v3y" Quantitative  <>
+vls1 = A.toJSON $ vegaLiteSpec 400 400 (DataJSON dats) [
+  layer MRect $
+      posEnc X "v3x" Ordinal <>
+      posEnc Y "v3y" Ordinal  <>
       colourEnc "v3z" Quantitative <>
       sizeEnc "v3z" Quantitative
                                                  ]  
@@ -42,10 +42,10 @@ vls1 = A.toJSON $ VLSpec 400 400 (DataJSON dats) [
 
 vls0 :: A.Value
 vls0 =
-  A.toJSON $ VLSpec 400 300 (DataJSON testVs) $ [
-    LayerMD (Mark MCircle ) (
-       posXEnc "tv" Nominal <>
-       posYEnc "tvb" Quantitative <>
+  A.toJSON $ vegaLiteSpec 400 300 (DataJSON testVs) $ [
+    layer MCircle (
+       posEnc X "tv" Nominal <>
+       posEnc Y "tvb" Quantitative <>
        colourEnc "tvb" Quantitative <>
        sizeEnc "tvb" Quantitative
        )

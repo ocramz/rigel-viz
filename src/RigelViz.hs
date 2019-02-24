@@ -1,28 +1,49 @@
 {-# language OverloadedStrings, DeriveGeneric, LambdaCase #-}
-module RigelViz where
+module RigelViz (
+  vegaLiteSpec, VLSpec,
+  -- * Data sources
+  Data(..),
+  -- * Layer
+  layer,  LayerMetadata,
+  -- * Mark 
+  MarkType(..),
+  -- * Data encoding options
+  EncSet, posEnc, Pos(..), colourEnc, colour, sizeEnc, EncodingType(..)) where
 
 import qualified Data.Set as S
 import GHC.Generics (Generic(..))
 import qualified Data.Aeson as A
 import Data.Aeson ((.=))
+import Data.Char (toLower)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T (decodeUtf8)
+-- import qualified Data.Text.Encoding as T (decodeUtf8)
 -- import qualified Data.ByteString as BS hiding (pack)
 -- import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
-import qualified Data.ByteString.Lazy as LBS (toStrict)
+-- import qualified Data.ByteString.Lazy as LBS (toStrict)
 -- import Data.Monoid
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 
 
-toJSONText :: A.ToJSON a => a -> T.Text
-toJSONText e = T.decodeUtf8 $ LBS.toStrict $ A.encode e
+-- toJSONText :: A.ToJSON a => a -> T.Text
+-- toJSONText e = T.decodeUtf8 $ LBS.toStrict $ A.encode e
 
 -- | The current schema version is 3
 schema :: Int -> String
 schema vn = mconcat ["https://vega.github.io/schema/vega-lite/v", show vn,".json"]
 
+-- | Create a @vega-lite@ spec
+vegaLiteSpec ::
+     Int  -- ^ Plot width
+  -> Int  -- ^ Plot height
+  -> Data a -- ^ Data source
+  -> [LayerMetadata]  -- ^ Plot layer encoding metadata
+  -> VLSpec a
+vegaLiteSpec = VLSpec
+
 -- | Specification of a vega-lite plot
+--
+-- A 'VLSpec' can be encoded into a JSON blob via its 'A.ToJSON' instance.
 data VLSpec a = VLSpec {
     vlsWidth :: Int
   , vlsHeight :: Int
@@ -41,8 +62,8 @@ instance A.ToJSON a => A.ToJSON (VLSpec a) where
 
 -- | Data source
 data Data a =
-    DataJSON [a]  -- ^ Data rows
-  | DataURI String -- ^ Data from URI
+    DataJSON [a]  -- ^ Data row type must have a 'A.ToJSON' instance
+  | DataURI String -- ^ URI or filepath of dataset
   deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
   toJSON = \case
@@ -50,18 +71,23 @@ instance A.ToJSON a => A.ToJSON (Data a) where
     DataURI u   -> A.object ["url" .= u]
 
 -- | Layer metadata
+
 data LayerMetadata = LayerMD Mark EncSet deriving (Eq, Show, Generic)
 instance A.ToJSON LayerMetadata where
   toJSON (LayerMD m e) = A.object ["mark" .= m, "encoding" .= e]
 
+-- | Declare a plot layer
+layer :: MarkType -> EncSet -> LayerMetadata
+layer m es = LayerMD (Mark m) es
+
+-- | Set of channel encoding options.
+--
+-- Options are created with 'posEnc', 'colourEnc' / 'colour', 'sizeEnc' and can be added to an 'EncSet' via its 'Semigroup' instance
 newtype EncSet  = EncSet (S.Set Encoding) deriving (Eq, Show, Generic)
 instance A.ToJSON EncSet where
   toJSON (EncSet es) = A.object $ S.foldr insf [] es where
-    insf el acc = case el of 
-      EsPosX emd   -> ("x" .= emd) : acc
-      EsPosY emd   -> ("y" .= emd) : acc
-      EsPosX2 emd  -> ("x2" .= emd) : acc
-      EsPosY2 emd  -> ("y2" .= emd) : acc
+    insf el acc = case el of
+      EsPos p emd  -> (showPos p .= emd) : acc
       EsColour emd -> ("color" .= emd) : acc
       EsSize emd   -> ("size" .= emd) : acc      
 
@@ -71,37 +97,54 @@ singleton = EncSet . S.singleton
 instance Semigroup EncSet where
   (EncSet s1) <> (EncSet s2) = EncSet $ s1 <> s2
 
-posXEnc :: T.Text -> EncodingType -> EncSet
-posXEnc f t = singleton $ EsPosX $ EncMD f t
+-- | Position encoding
+posEnc :: Pos
+  -> T.Text   -- ^ Field in the data source
+  -> EncodingType
+  -> EncSet
+posEnc p f t = singleton $ EsPos p $ EncMD f t
 
-posYEnc :: T.Text -> EncodingType -> EncSet
-posYEnc f t = singleton $ EsPosY $ EncMD f t
+-- | Fixed colour
+colour :: C.Colour Double -> EncSet
+colour c = singleton $ EsColour $ ColourFixed c
 
-colourFixed :: C.Colour Double -> EncSet
-colourFixed c = singleton $ EsColour $ ColourFixed c
-
-colourEnc :: T.Text -> EncodingType -> EncSet
+-- | Colour encoding
+colourEnc :: T.Text -- ^ Field in the data source
+  -> EncodingType
+  -> EncSet
 colourEnc f t = singleton $ EsColour $ ColourEnc $ EncMD f t
 
-sizeEnc :: T.Text -> EncodingType -> EncSet
+-- | Size encoding
+sizeEnc :: T.Text -- ^ Field in the data source
+  -> EncodingType
+  -> EncSet
 sizeEnc f t = singleton $ EsSize $ SizeEnc $ EncMD f t
 
 -- | Encoding channels for a layer
 data Encoding =
-    EsPosX EncMetadata
-  | EsPosY EncMetadata
-  | EsPosX2 EncMetadata
-  | EsPosY2 EncMetadata  
+    EsPos Pos EncMetadata
   | EsColour Colour
   | EsSize Size
   deriving (Eq, Show, Ord, Generic)
+
+-- | Position encoding alternatives
+data Pos = X | Y | X2 | Y2 deriving (Eq, Ord, Show)
+showPos :: Pos -> T.Text
+showPos p = T.pack $ map toLower $ show p
 
 newtype Mark = Mark { mType :: MarkType } deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
   toJSON (Mark mty) = A.object ["type" .= mty]
 
--- | Mark types
-data MarkType = MPoint | MCircle | MRect | MBar | MArea | MRule deriving (Eq, Show, Generic)
+-- | Mark type alternatives
+data MarkType =
+    MPoint  -- ^ "point"
+  | MCircle -- ^ "circle"
+  | MRect   -- ^ "rect"
+  | MBar    -- ^ "bar"
+  | MArea   -- ^ "area"
+  | MRule   -- ^ "rule"
+  deriving (Eq, Show, Generic)
 instance A.ToJSON MarkType where
   toJSON = \case
     MPoint  -> "point"
