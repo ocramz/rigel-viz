@@ -19,8 +19,25 @@ import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
 -- main = putStrLn "hello!"
 
-main = renderToFile "asdf.html" $ mkVegaHtml vls0
+main = renderToFile "heatmap.html" $ mkVegaHtml vls1
 
+
+data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
+instance A.ToJSON a => A.ToJSON (V3 a)
+
+dats :: [V3 Double]
+dats = [V3 x y (f x y) | x <- xs, y <- ys] where
+  xs = [0, 0.2 .. 2]
+  ys = xs
+  f x y = sin $ sqrt (x ** 2 + y ** 2)
+
+vls1 = A.toJSON $ VLSpec 400 400 (DataJSON dats) [
+  LayerMD (Mark MCircle) $
+      posXEnc "v3x" Quantitative <>
+      posYEnc "v3y" Quantitative  <>
+      colourEnc "v3z" Quantitative <>
+      sizeEnc "v3z" Quantitative
+                                                 ]  
 
 
 vls0 :: A.Value

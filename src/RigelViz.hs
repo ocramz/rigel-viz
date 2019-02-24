@@ -95,14 +95,6 @@ data Encoding =
   | EsColour Colour
   | EsSize Size
   deriving (Eq, Show, Ord, Generic)
-instance A.ToJSON Encoding where
-  toJSON = \case
-    EsPosX emd   -> A.object ["x" .= emd]
-    EsPosY emd   -> A.object ["y" .= emd]
-    EsPosX2 emd  -> A.object ["x2" .= emd]
-    EsPosY2 emd  -> A.object ["y2" .= emd]
-    EsColour emd -> A.object ["color" .= emd]
-    EsSize emd   -> A.object ["size" .= emd]  
 
 newtype Mark = Mark { mType :: MarkType } deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
