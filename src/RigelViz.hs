@@ -164,7 +164,7 @@ instance (A.ToJSON a, A.ToJSON d) => A.ToJSON (LayerMetadata a d) where
 
 -- | Declare a plot layer
 layer :: MarkType -> DataSource d -> EncSet a -> LayerMetadata a d
-layer m ds es = LayerMD (Mark m) ds es
+layer m ds es = LayerMD (Mark m True) ds es
 
 -- | Set of channel encoding options.
 --
@@ -225,9 +225,9 @@ data Pos = X | Y | X2 | Y2 deriving (Eq, Ord, Show)
 showPos :: Pos -> T.Text
 showPos p = T.pack $ map toLower $ show p
 
-newtype Mark = Mark { mType :: MarkType } deriving (Eq, Show, Generic)
+data Mark = Mark { mType :: MarkType, mClip :: Bool } deriving (Eq, Show, Generic)
 instance A.ToJSON Mark where
-  toJSON (Mark mty) = A.object ["type" .= mty]
+  toJSON (Mark mty mcl) = A.object ["type" .= mty, "clip" .= mcl]
 
 -- | Mark type alternatives
 data MarkType =
@@ -261,7 +261,8 @@ bounds mi ma = Domain [mi, ma]
 
 -- | Scale elements (used in Ordinal and Nominal channels)
 range :: [a] -> Domain a
-range = Domain 
+range = Domain
+
 newtype Domain a = Domain [a] deriving (Eq, Show, Ord)
 instance A.ToJSON a => A.ToJSON (Domain a) where
   toJSON (Domain ds) = A.object ["domain" .= A.toJSON ds]

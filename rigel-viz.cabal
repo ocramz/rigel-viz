@@ -22,6 +22,7 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   exposed-modules:     RigelViz
+                       RigelViz.Vega
   build-depends:       base >= 4.7 && < 5
                      , bytestring >= 0.10.8.2
                      , colour >= 2.3.4

@@ -29,9 +29,10 @@ vls2 = vegaLiteSpec 400 400 [
   layer MLine (DataJSON wls) $
      posEnc X "wl1" Quantitative bx <>
      posEnc Y "wl2" Quantitative by
-                            ] where
-  bx = bounds 300 450
-  by = bounds (0.5) 5
+                            ]
+  where
+      bx = bounds 300 450
+      by = bounds (0.5) 5
 
 wls = [WL 250 1, WL 300 2, WL 320 3.5, WL 450 1.2, WL 500 2.4]
 
