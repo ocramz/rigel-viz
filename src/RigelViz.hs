@@ -38,8 +38,8 @@ render0 = 'renderToFile' "scatter.html" $ 'mkVegaHtml' $ 'A.toJSON' vls0
 
 vls0 :: 'VLSpec' TestValue
 vls0 =
-  'vegaLiteSpec' 400 300 ('DataJSON' testVs) [
-    'layer' 'MCircle' (
+  'vegaLiteSpec' 400 300 [
+    'layer' 'MCircle' ('DataJSON' testVs) (
        'posEnc' 'X' "tv" 'Nominal' <>
        posEnc 'Y' "tvb" 'Quantitative' <>
        'colourEnc' "tvb" Quantitative <>
@@ -66,8 +66,8 @@ render0 :: IO ()
 render0 = 'renderToFile' "heatmap.html" $ 'mkVegaHtml' $ 'A.toJSON' vls1
 
 vls1 :: VLSpec (V3 Double)
-vls1 = vegaLiteSpec 400 400 (DataJSON dats) [
-  layer 'MRect' $
+vls1 = vegaLiteSpec 400 400 [
+  layer 'MRect' (DataJSON dats) $
       posEnc X "v3x" 'Ordinal' <>
       posEnc Y "v3y" Ordinal  <>
       colourEnc "v3z" Quantitative <>
@@ -127,8 +127,7 @@ schema vn = mconcat ["https://vega.github.io/schema/vega-lite/v", show vn,".json
 vegaLiteSpec ::
      Int  -- ^ Plot width
   -> Int  -- ^ Plot height
-  -> DataSource a -- ^ Data source
-  -> [LayerMetadata]  -- ^ Plot layer encoding metadata
+  -> [LayerMetadata a]  
   -> VLSpec a
 vegaLiteSpec = VLSpec
 
@@ -138,17 +137,15 @@ vegaLiteSpec = VLSpec
 data VLSpec a = VLSpec {
     vlsWidth :: Int
   , vlsHeight :: Int
-  , vlsData :: DataSource a
-  , vlsView :: [LayerMetadata]
+  , vlsView :: [LayerMetadata a]
   } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (VLSpec a) where
-  toJSON (VLSpec w h dats lms) = A.object $ ("layer" .= map A.toJSON lms) : defs
+  toJSON (VLSpec w h lms) = A.object $ ("layer" .= map A.toJSON lms) : defs
     where
       defs = [
         "$schema" .= schema 3
         , "width" .= w
         , "height" .= h
-        , "data" .= dats
         ]
 
 -- | Data source
@@ -161,15 +158,14 @@ instance A.ToJSON a => A.ToJSON (DataSource a) where
     DataJSON vs -> A.object ["values" .= vs]
     DataURI u   -> A.object ["url" .= u]
 
--- | Layer metadata
-
-data LayerMetadata = LayerMD Mark EncSet deriving (Eq, Show, Generic)
-instance A.ToJSON LayerMetadata where
-  toJSON (LayerMD m e) = A.object ["mark" .= m, "encoding" .= e]
+-- | Plot layer data and encoding metadata
+data LayerMetadata a = LayerMD Mark (DataSource a) EncSet deriving (Eq, Show, Generic)
+instance A.ToJSON a => A.ToJSON (LayerMetadata a) where
+  toJSON (LayerMD m ds e) = A.object ["mark" .= m, "encoding" .= e, "data" .= ds]
 
 -- | Declare a plot layer
-layer :: MarkType -> EncSet -> LayerMetadata
-layer m es = LayerMD (Mark m) es
+layer :: MarkType -> DataSource a -> EncSet -> LayerMetadata a
+layer m ds es = LayerMD (Mark m) ds es
 
 -- | Set of channel encoding options.
 --

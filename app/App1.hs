@@ -32,19 +32,19 @@ dats = [V3 x y (f x y) | x <- xs, y <- ys] where
   f x y = sin $ 2 * pi * sqrt (x ** 2 + y ** 2)
 
 vls1 :: VLSpec (V3 Double)
-vls1 = vegaLiteSpec 400 400 (DataJSON dats) [
-  layer MRect $
+vls1 = vegaLiteSpec 400 400 [
+  layer MRect (DataJSON dats) $
       posEnc X "v3x" Ordinal <>
       posEnc Y "v3y" Ordinal  <>
       colourEnc "v3z" Quantitative <>
       sizeEnc "v3z" Quantitative
-                                                 ]  
+      ]  
 
 
 vls0 :: VLSpec TestValue
 vls0 =
-  vegaLiteSpec 400 300 (DataJSON testVs) [
-    layer MCircle (
+  vegaLiteSpec 400 300  [
+    layer MCircle (DataJSON testVs) (
        posEnc X "tv" Nominal <>
        posEnc Y "tvb" Quantitative <>
        colourEnc "tvb" Quantitative <>
