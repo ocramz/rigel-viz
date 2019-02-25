@@ -19,7 +19,24 @@ import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
 -- main = putStrLn "hello!"
 
-main = renderToFile "heatmap.html" $ mkVegaHtml $ A.toJSON vls1
+main = renderToFile "cropped.html" $ mkVegaHtml $ A.toJSON vls2
+
+data WL = WL { wl1 :: Double , wl2 :: Double} deriving (Eq, Show, Generic)
+instance A.ToJSON WL
+
+vls2 :: VLSpec Double WL
+vls2 = vegaLiteSpec 400 400 [
+  layer MLine (DataJSON wls) $
+     posEnc X "wl1" Quantitative bx <>
+     posEnc Y "wl2" Quantitative by
+                            ] where
+  bx = bounds 300 450
+  by = bounds (0.5) 5
+
+wls = [WL 250 1, WL 300 2, WL 320 3.5, WL 450 1.2, WL 500 2.4]
+
+
+
 
 
 data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
@@ -27,30 +44,38 @@ instance A.ToJSON a => A.ToJSON (V3 a)
 
 dats :: [V3 Double]
 dats = [V3 x y (f x y) | x <- xs, y <- ys] where
-  xs = map (/10) [0, 1 .. 20]
+  xs = map (/2) [0, 1 .. 20]
   ys = xs
   f x y = sin $ 2 * pi * sqrt (x ** 2 + y ** 2)
 
-vls1 :: VLSpec (V3 Double)
+vls1 :: VLSpec Double (V3 Double)
 vls1 = vegaLiteSpec 400 400 [
   layer MRect (DataJSON dats) $
-      posEnc X "v3x" Ordinal <>
-      posEnc Y "v3y" Ordinal  <>
-      colourEnc "v3z" Quantitative <>
-      sizeEnc "v3z" Quantitative
-      ]  
+      posEnc X "v3x" Quantitative bx <>
+      posEnc Y "v3y" Quantitative  by <>
+      colourEnc "v3z" Quantitative bz
+      ]
+  where
+    bx = range $ map (/2) [0, 1 .. 20] -- bounds 0 20
+    by = bx
+    bz = bounds (negate 1) 1
+  
 
 
-vls0 :: VLSpec TestValue
+-- vls0 :: VLSpec TestValue
 vls0 =
-  vegaLiteSpec 400 300  [
+  vegaLiteSpec 400 300 [
     layer MCircle (DataJSON testVs) (
-       posEnc X "tv" Nominal <>
-       posEnc Y "tvb" Quantitative <>
-       colourEnc "tvb" Quantitative <>
-       sizeEnc "tvb" Quantitative
+       posEnc X "tv" Nominal bx  <>
+       posEnc Y "tvb" Quantitative by <>
+       colourEnc "tvb" Quantitative bz <>
+       sizeEnc "tvb" Quantitative bz
        )
     ]
+    where
+    bx = range $ map (/10) [0, 1 .. 20] -- bounds 0 20
+    by = bx
+    bz = bounds (negate 1) 1
 
 data T = A | B | C deriving (Eq, Show, Generic)
 instance A.ToJSON T

@@ -70,8 +70,7 @@ vls1 = vegaLiteSpec 400 400 [
   layer 'MRect' (DataJSON dats) $
       posEnc X "v3x" 'Ordinal' <>
       posEnc Y "v3y" Ordinal  <>
-      colourEnc "v3z" Quantitative <>
-      sizeEnc "v3z" Quantitative
+      colourEnc "v3z" Quantitative 
 
 data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (V3 a)
@@ -95,7 +94,7 @@ module RigelViz (
   -- * Mark 
   MarkType(..),
   -- * Data encoding options
-  EncSet, posEnc, Pos(..), colourEnc, colour, size, sizeEnc, EncodingType(..)) where
+  EncSet, posEnc, Pos(..), colourEnc, colour, size, sizeEnc, EncodingType(..), bounds, range) where
 
 import qualified Data.Set as S
 import GHC.Generics (Generic(..))
@@ -127,19 +126,19 @@ schema vn = mconcat ["https://vega.github.io/schema/vega-lite/v", show vn,".json
 vegaLiteSpec ::
      Int  -- ^ Plot width
   -> Int  -- ^ Plot height
-  -> [LayerMetadata a]  
-  -> VLSpec a
+  -> [LayerMetadata a d]  
+  -> VLSpec a d
 vegaLiteSpec = VLSpec
 
 -- | Specification of a vega-lite plot
 --
 -- A 'VLSpec' can be encoded into a JSON blob via its 'A.ToJSON' instance.
-data VLSpec a = VLSpec {
+data VLSpec a d = VLSpec {
     vlsWidth :: Int
   , vlsHeight :: Int
-  , vlsView :: [LayerMetadata a]
+  , vlsView :: [LayerMetadata a d]
   } deriving (Eq, Show, Generic)
-instance A.ToJSON a => A.ToJSON (VLSpec a) where
+instance (A.ToJSON a, A.ToJSON d) => A.ToJSON (VLSpec a d) where
   toJSON (VLSpec w h lms) = A.object $ ("layer" .= map A.toJSON lms) : defs
     where
       defs = [
@@ -159,63 +158,66 @@ instance A.ToJSON a => A.ToJSON (DataSource a) where
     DataURI u   -> A.object ["url" .= u]
 
 -- | Plot layer data and encoding metadata
-data LayerMetadata a = LayerMD Mark (DataSource a) EncSet deriving (Eq, Show, Generic)
-instance A.ToJSON a => A.ToJSON (LayerMetadata a) where
+data LayerMetadata a d = LayerMD Mark (DataSource d) (EncSet a) deriving (Eq, Show, Generic)
+instance (A.ToJSON a, A.ToJSON d) => A.ToJSON (LayerMetadata a d) where
   toJSON (LayerMD m ds e) = A.object ["mark" .= m, "encoding" .= e, "data" .= ds]
 
 -- | Declare a plot layer
-layer :: MarkType -> DataSource a -> EncSet -> LayerMetadata a
+layer :: MarkType -> DataSource d -> EncSet a -> LayerMetadata a d
 layer m ds es = LayerMD (Mark m) ds es
 
 -- | Set of channel encoding options.
 --
 -- Options are created with 'posEnc', 'colourEnc', 'colour', 'sizeEnc', 'size' and can be added to an 'EncSet' via its 'Semigroup' instance
-newtype EncSet  = EncSet (S.Set Encoding) deriving (Eq, Show, Generic)
-instance A.ToJSON EncSet where
+newtype EncSet a = EncSet (S.Set (Encoding a)) deriving (Eq, Show, Generic)
+instance A.ToJSON a => A.ToJSON (EncSet a) where
   toJSON (EncSet es) = A.object $ S.foldr insf [] es where
     insf el acc = case el of
       EsPos p emd  -> (showPos p .= emd) : acc
       EsColour emd -> ("color" .= emd) : acc
       EsSize emd   -> ("size" .= emd) : acc      
 
-singleton :: Encoding -> EncSet
+singleton :: Encoding a -> EncSet a
 singleton = EncSet . S.singleton
 
-instance Semigroup EncSet where
+instance Ord a => Semigroup (EncSet a) where
   (EncSet s1) <> (EncSet s2) = EncSet $ s1 <> s2
 
 -- | Position encoding
 posEnc :: Pos
   -> T.Text   -- ^ Field in the data source
-  -> EncodingType
-  -> EncSet
-posEnc p f t = singleton $ EsPos p $ EncMD f t
+  -> EncodingType 
+  -> Domain a
+  -> EncSet a
+posEnc p f t d = singleton $ EsPos p $ EncMD f t d
 
 -- | Fixed colour
-colour :: C.Colour Double -> EncSet
+colour :: C.Colour Double -> EncSet a
 colour c = singleton $ EsColour $ ColourFixed c
 
 -- | Colour encoding
 colourEnc :: T.Text -- ^ Field in the data source
   -> EncodingType
-  -> EncSet
-colourEnc f t = singleton $ EsColour $ ColourEnc $ EncMD f t
+  -> Domain a
+  -> EncSet a
+colourEnc f t d = singleton $ EsColour $ ColourEnc $ EncMD f t d
 
 -- | Size encoding
 sizeEnc :: T.Text -- ^ Field in the data source
   -> EncodingType
-  -> EncSet
-sizeEnc f t = singleton $ EsSize $ SizeEnc $ EncMD f t
+  -> Domain a
+  -> EncSet a
+sizeEnc f t d = singleton $ EsSize $ SizeEnc $ EncMD f t d
 
 -- | Fixed size
-size :: Double -> EncSet
+size :: Double -> EncSet a
 size s = singleton $ EsSize $ SizeFixed s
 
 -- | Encoding channels for a layer
-data Encoding =
-    EsPos Pos EncMetadata
-  | EsColour Colour
-  | EsSize Size
+data Encoding a =
+    EsPos Pos (EncMetadata a)
+  | EsColour (Colour a)
+  | EsSize (Size a)
   deriving (Eq, Show, Ord, Generic)
 
 -- | Position encoding alternatives
@@ -249,30 +251,41 @@ instance A.ToJSON MarkType where
     MRule   -> "rule"
     MLine   -> "line"
 
-data EncMetadata = EncMD { encField :: T.Text, emType :: EncodingType } deriving (Eq, Show, Ord, Generic)
-instance A.ToJSON EncMetadata where
-  toJSON (EncMD f t) = A.object [ "field" .= f, "type" .= t]
+data EncMetadata a = EncMD { encField :: T.Text, emType :: EncodingType, emScale :: Domain a } deriving (Eq, Show, Ord, Generic)
+instance A.ToJSON a => A.ToJSON (EncMetadata a) where
+  toJSON (EncMD f t d) = A.object [ "field" .= f, "type" .= t, "scale" .= d]
+
+-- | Scale bounds (used in Quantitative and Temporal channels)
+bounds :: a -> a -> Domain a
+bounds mi ma = Domain [mi, ma]
+
+-- | Scale elements (used in Ordinal and Nominal channels)
+range :: [a] -> Domain a
+range = Domain 
+newtype Domain a = Domain [a] deriving (Eq, Show, Ord)
+instance A.ToJSON a => A.ToJSON (Domain a) where
+  toJSON (Domain ds) = A.object ["domain" .= A.toJSON ds]
 
 -- | "colour" encoding channel metadata
-data Colour =
+data Colour a =
     ColourFixed (C.Colour Double)
-  | ColourEnc EncMetadata
+  | ColourEnc (EncMetadata a)
   deriving (Eq, Show, Generic)
-instance Ord Colour where
+instance Ord a => Ord (Colour a) where
   ColourFixed c1 <= ColourFixed c2 = C.sRGB24show c1 <= C.sRGB24show c2 -- ewwwwwww
   ColourEnc e1 <= ColourEnc e2 = e1 <= e2
   _ <= _ = False
-instance A.ToJSON Colour where
+instance A.ToJSON a => A.ToJSON (Colour a) where
   toJSON = \case
     ColourFixed c -> A.object ["value" .= C.sRGB24show c]
     ColourEnc emd -> A.toJSON emd
 
 -- | "size" encoding channel metadata
-data Size =
+data Size a =
     SizeFixed Double
-  | SizeEnc EncMetadata
+  | SizeEnc (EncMetadata a)
   deriving (Eq, Show, Ord, Generic)
-instance A.ToJSON Size where
+instance A.ToJSON a => A.ToJSON (Size a) where
   toJSON = \case
     SizeFixed sz -> A.object ["value" .= sz]
     SizeEnc emd  -> A.toJSON emd
