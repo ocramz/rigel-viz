@@ -39,17 +39,7 @@ instance A.ToJSON VSpec where
 
 
 
-{-
-"title": {
-    "text": "Seattle Annual Temperatures",
-    "anchor": "middle",
-    "fontSize": 16,
-    "frame": "group",
-    "offset": 4
-  }
--}
-
--- | Create a title with default settings
+-- | Create a title with some default settings
 titleDef :: String -> Title
 titleDef t = Title t TMiddle 15 TFGroup 5
 
