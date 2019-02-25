@@ -39,11 +39,12 @@ instance A.ToJSON VSpec where
 
 
 
+
 -- | Create a title with some default settings
 titleDef :: String -> Title
 titleDef t = Title t TMiddle 15 TFGroup 5
 
-data Title = Title String TAnchor Int TFrame Int deriving (Eq, Show, Generic)
+data Title = Title { titleText :: String, titleAnchor :: TAnchor, titleFontSz :: Int, titleFrame :: TFrame, titleOffset :: Int } deriving (Eq, Show, Generic)
 instance A.ToJSON Title where
   toJSON (Title ts ta fs tf off) = A.object ["text" .= ts, "anchor" .= ta, "fontSize" .= fs, "frame" .= tf, "offset" .= off]
 
