@@ -1,4 +1,5 @@
 {-# language OverloadedStrings, DeriveGeneric, LambdaCase #-}
+{-# language CPP #-}
 {-|
 Module      : RigelViz
 Description : Mid-level bindings to @vega-lite@
@@ -109,6 +110,10 @@ import qualified Data.Text as T
 -- import Data.Monoid
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
+
+#if !MIN_VERSION_base(4,8,0)
+import Data.Semigroup
+#endif
 
 
 -- toJSONText :: A.ToJSON a => a -> T.Text
