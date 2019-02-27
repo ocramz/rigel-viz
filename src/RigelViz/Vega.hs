@@ -14,10 +14,21 @@ import qualified Data.Text as T
 -- import Data.Monoid
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
+import qualified Data.Map as M
 
 #if !MIN_VERSION_base(4,8,0)
 import Data.Semigroup
 #endif
+
+
+{- |
+A plot can be seen as a mapping between data features and features of visual marks. For example:
+
+  * line chart : data.x -> X, data.y -> Y
+  * heatmap    : data.x -> X, data.y -> Y, data.z -> COLOUR
+-}
+
+
 
 
 -- | The current schema version is 5
@@ -31,24 +42,29 @@ schema vn = mconcat ["https://vega.github.io/schema/vega/v", show vn,".json"]
 --
 -- NB : 'a' is the type of the rows
 data VSpec a = VSpec {
-    vsWidth :: Int -- ^ plot width [px]
+    vsTitle :: Maybe Title  -- ^ title
+  , vsWidth :: Int -- ^ plot width [px]
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
   , vsData :: Data a -- ^ data
   } deriving  (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (VSpec a) where
-  toJSON (VSpec w h p ds) =
-    A.object ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5, "data" .= ds]
+  toJSON (VSpec tm w h p ds) =
+    A.object $ ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5, "data" .= ds] ++ opts where
+    opts = case tm of
+      Just t -> ["title" .= t]
+      Nothing -> []
+    
 
 
 
 
 -- | Create a title with some default settings
-titleDef ::
+title ::
      String   -- ^ title
   -> Int  -- ^ font size
   -> Title
-titleDef t s = Title t TMiddle s TFGroup 5
+title t s = Title t TMiddle s TFGroup 5
 
 data Title = Title { titleText :: String, titleAnchor :: TAnchor, titleFontSz :: Int, titleFrame :: TFrame, titleOffset :: Int } deriving (Eq, Show, Generic)
 instance A.ToJSON Title where
