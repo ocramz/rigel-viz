@@ -29,9 +29,9 @@ schema vn = mconcat ["https://vega.github.io/schema/vega/v", show vn,".json"]
 --
 -- A 'VSpec' can be encoded into a JSON blob via its 'A.ToJSON' instance.
 data VSpec = VSpec {
-    vsWidth :: Int
-  , vsHeight :: Int
-  , vsPadding :: Int
+    vsWidth :: Int -- ^ plot width [px]
+  , vsHeight :: Int  -- ^ plot height [px]
+  , vsPadding :: Int  -- ^ padding [px]
   } deriving  (Eq, Show, Generic)
 instance A.ToJSON VSpec where
   toJSON (VSpec w h p) =
@@ -41,8 +41,11 @@ instance A.ToJSON VSpec where
 
 
 -- | Create a title with some default settings
-titleDef :: String -> Title
-titleDef t = Title t TMiddle 15 TFGroup 5
+titleDef ::
+     String   -- ^ title
+  -> Int  -- ^ font size
+  -> Title
+titleDef t s = Title t TMiddle s TFGroup 5
 
 data Title = Title { titleText :: String, titleAnchor :: TAnchor, titleFontSz :: Int, titleFrame :: TFrame, titleOffset :: Int } deriving (Eq, Show, Generic)
 instance A.ToJSON Title where
@@ -60,6 +63,39 @@ instance A.ToJSON TAnchor where
     TStart -> "start"
     TMiddle -> "middle"
     TEnd -> "end"
+
+
+
+-- * Data
+
+data Data a = Data { dataName :: String, dataSource :: DataSource a} deriving (Eq, Show, Generic)
+instance A.ToJSON a => A.ToJSON (Data a) where
+  toJSON (Data dn ds) = let nn = ["name" .= dn] in case ds of
+    DataJSON vs -> A.object $ ("values" .= vs) : nn
+    DataURI u -> A.object $ ("url" .= u) : nn 
+
+-- | Data source
+-- If the format property is not specified, the data is assumed to be in a row-oriented JSON format.
+data DataSource a =
+    DataJSON [a]  -- ^ Data row type must have a 'A.ToJSON' instance
+  | DataURI String -- ^ URI or filepath of dataset
+  deriving (Eq, Show, Generic)
+-- instance A.ToJSON a => A.ToJSON (DataSource a) where
+--   toJSON = \case
+--     DataJSON vs -> A.object ["values" .= vs]
+--     DataURI u   -> A.object ["url" .= u]
+
+
+
+
+-- * Scale
+
+data ScaleType = STLinear | STTime | STBand deriving (Eq, Show, Generic)
+instance A.ToJSON ScaleType where
+  toJSON = \case
+    STLinear -> "linear"
+    STTime -> "time"
+    STBand -> "band"
 
 
 

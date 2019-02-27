@@ -21,6 +21,10 @@ import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
 main = renderToFile "cropped.html" $ mkVegaHtml $ A.toJSON vls2
 
+
+
+-- | line chart with trimmed domain and range
+
 data WL = WL { wl1 :: Double , wl2 :: Double} deriving (Eq, Show, Generic)
 instance A.ToJSON WL
 
@@ -32,13 +36,13 @@ vls2 = vegaLiteSpec 400 400 [
                             ]
   where
       bx = bounds 300 450
-      by = bounds (0.5) 5
+      by = bounds 0.5 5
 
 wls = [WL 250 1, WL 300 2, WL 320 3.5, WL 450 1.2, WL 500 2.4]
 
 
 
-
+-- | heatmap 
 
 data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (V3 a)
@@ -62,6 +66,7 @@ vls1 = vegaLiteSpec 400 400 [
     bz = bounds (negate 1) 1
   
 
+-- | scatter plot
 
 -- vls0 :: VLSpec TestValue
 vls0 =
