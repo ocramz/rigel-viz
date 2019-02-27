@@ -27,15 +27,18 @@ schema vn = mconcat ["https://vega.github.io/schema/vega/v", show vn,".json"]
 
 -- | Specification of a vega plot
 --
--- A 'VSpec' can be encoded into a JSON blob via its 'A.ToJSON' instance.
-data VSpec = VSpec {
+-- A 'VSpec a' can be encoded into a JSON blob via its 'A.ToJSON' instance.
+--
+-- NB : 'a' is the type of the rows
+data VSpec a = VSpec {
     vsWidth :: Int -- ^ plot width [px]
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
+  , vsData :: Data a -- ^ data
   } deriving  (Eq, Show, Generic)
-instance A.ToJSON VSpec where
-  toJSON (VSpec w h p) =
-    A.object ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5]
+instance A.ToJSON a => A.ToJSON (VSpec a) where
+  toJSON (VSpec w h p ds) =
+    A.object ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5, "data" .= ds]
 
 
 
@@ -70,9 +73,11 @@ instance A.ToJSON TAnchor where
 
 data Data a = Data { dataName :: String, dataSource :: DataSource a} deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
-  toJSON (Data dn ds) = let nn = ["name" .= dn] in case ds of
-    DataJSON vs -> A.object $ ("values" .= vs) : nn
-    DataURI u -> A.object $ ("url" .= u) : nn 
+  toJSON (Data dn ds) = let
+    nn = ["name" .= dn]
+    in case ds of
+      DataJSON vs -> A.object $ ("values" .= vs) : nn
+      DataURI u -> A.object $ ("url" .= u) : nn 
 
 -- | Data source
 -- If the format property is not specified, the data is assumed to be in a row-oriented JSON format.
