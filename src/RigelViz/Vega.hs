@@ -119,6 +119,8 @@ instance A.ToJSON ScaleType where
     STBand -> "band"
 
 
+data EncodingMetadata s = EncMD { emdScale :: s, emdField :: String } deriving (Eq, Show, Generic)
+
 
 
 -- * Mark
@@ -129,7 +131,8 @@ data MarkType =
   | MRect   -- ^ "rect"
   | MArea   -- ^ "area"
   | MRule   -- ^ "rule"
-  | MLine   -- ^ "line"  
+  | MLine   -- ^ "line"
+  | MGroup  -- ^ "group"
   deriving (Eq, Show, Generic)
 instance A.ToJSON MarkType where
   toJSON = \case
@@ -138,3 +141,20 @@ instance A.ToJSON MarkType where
     MArea   -> "area"
     MRule   -> "rule"
     MLine   -> "line"
+    MGroup  -> "group"
+
+-- ** Mark color metadata
+
+-- | A shape can be coloured in three ways : fill only, stroke (border) only, both fill and stroke
+data MarkColour = MCFill Colour | MCStroke Colour | MCBoth Colour Colour deriving (Eq, Show, Generic)
+
+data Colour = Colour { cFill :: C.Colour Double, cAlpha :: Double } deriving (Eq, Show, Generic)
+
+
+-- ** Mark geometry metadata (position and size)
+
+-- | centered (xc, yc, width, height)
+data MarkGeomCentered a = MarkGeomC { mgcXc :: a, mgcYc :: a , mgcW :: a, mgcH :: a } deriving (Eq, Show, Generic)
+
+-- | non centered (x, y, x2, y2)
+data MarkGeom a = MarkGeom { mgX :: a, mgY :: a , mgX2 :: a, mgY2 :: a } deriving (Eq, Show, Generic)
