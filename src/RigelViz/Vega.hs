@@ -16,6 +16,8 @@ import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 import qualified Data.Map as M
 
+import Prelude hiding (lookup)
+
 #if !MIN_VERSION_base(4,8,0)
 import Data.Semigroup
 #endif
@@ -27,6 +29,10 @@ A plot can be seen as a mapping between data features and features of visual mar
   * line chart : data.x -> X, data.y -> Y
   * heatmap    : data.x -> X, data.y -> Y, data.z -> COLOUR
 -}
+
+
+
+
 
 
 
@@ -57,7 +63,7 @@ instance A.ToJSON a => A.ToJSON (VSpec a) where
     
 
 
-
+-- * Title
 
 -- | Create a title with some default settings
 title ::
@@ -84,8 +90,28 @@ instance A.ToJSON TAnchor where
     TEnd -> "end"
 
 
+-- * Legend
+
+data Legend = Legend { lType :: LType, lTitle :: String, lTitleFontsize :: Int } deriving (Eq, Show, Generic)
+
+-- | Legend type
+data LType = LGradient deriving (Eq, Show, Generic)
+
 
 -- * Data
+
+-- | Each dataset is labeled by a name string
+newtype Datasets a = DS (M.Map String [a]) deriving (Eq, Show)
+
+-- | Lookup a dataset by name
+lookupDS :: String -> Datasets a -> Maybe [a]
+lookupDS n (DS dsm) = M.lookup n dsm
+
+singletonDS :: String -> [a] -> Datasets a
+singletonDS n ds = DS $ M.singleton n ds
+
+fromListDS :: [(String, [a])] -> Datasets a
+fromListDS = DS . M.fromList 
 
 data Data a = Data { dataName :: String, dataSource :: DataSource a} deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
@@ -109,21 +135,43 @@ data DataSource a =
 
 
 
--- * Scale
 
-data ScaleType = STLinear | STTime | STBand deriving (Eq, Show, Generic)
+
+-- * Scale
+-- newtype Scales a = Scs (M.Map String)
+
+-- data Scale = Scale {scaleName :: String, scaleType :: ScaleType } deriving (Eq, Show, Generic)
+
+-- | Scale types
+-- 
+-- https://vega.github.io/vega/docs/scales/#types
+data ScaleType = STLinear | STLog | STTime | STBand | STPoint deriving (Eq, Show, Generic)
 instance A.ToJSON ScaleType where
   toJSON = \case
     STLinear -> "linear"
-    STTime -> "time"
-    STBand -> "band"
+    STLog    -> "log"
+    STTime   -> "time"
+    STBand   -> "band"
+    STPoint  -> "point"
 
 
-data EncodingMetadata s = EncMD { emdScale :: s, emdField :: String } deriving (Eq, Show, Generic)
+
+-- * Axis
+
+-- | V. axis types
+data VAxis = VALeft | VARight deriving (Eq, Show, Generic)
+data HAxis = HATop  | HABottom deriving (Eq, Show, Generic)
+
 
 
 
 -- * Mark
+
+-- | Scale metadata to encode one mark feature
+data EncodingMetadata s = EncMD {
+    emdScale :: s      -- ^ which 'scale' is the data encoded with
+  , emdField :: String -- ^ what data field is used
+  } deriving (Eq, Show, Generic)
 
 -- | Mark type alternatives
 data MarkType =
