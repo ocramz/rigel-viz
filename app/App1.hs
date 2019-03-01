@@ -6,7 +6,7 @@ import GHC.Generics
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encode.Pretty as A (encodePretty)
 
-import RigelViz
+
 import Lucid (Html(..), renderToFile)
 import Lucid.VegaLite (mkVegaHtml)
 
@@ -15,6 +15,10 @@ import qualified Data.Colour.Names as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 
 import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
+
+import RigelViz
+import Utils
+
 
 
 -- main = putStrLn "hello!"
@@ -44,14 +48,7 @@ wls = [WL 250 1, WL 300 2, WL 320 3.5, WL 450 1.2, WL 500 2.4]
 
 -- | heatmap 
 
-data V3 a = V3 { v3x :: a, v3y :: a, v3z :: a } deriving (Eq, Show, Generic)
-instance A.ToJSON a => A.ToJSON (V3 a)
 
-dats :: [V3 Double]
-dats = [V3 x y (f x y) | x <- xs, y <- ys] where
-  xs = map (/2) [0, 1 .. 20]
-  ys = xs
-  f x y = sin $ 2 * pi * sqrt (x ** 2 + y ** 2)
 
 vls1 :: VLSpec Double (V3 Double)
 vls1 = vegaLiteSpec 400 400 [
