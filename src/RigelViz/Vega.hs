@@ -49,18 +49,21 @@ schema vn = mconcat ["https://vega.github.io/schema/vega/v", show vn,".json"]
 -- NB : 'a' is the type of the rows
 data VSpec a = VSpec {
     vsTitle :: Maybe Title  -- ^ title
+  , vsLegend :: Maybe Legend
   , vsWidth :: Int -- ^ plot width [px]
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
   , vsData :: Data a -- ^ data
   } deriving  (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (VSpec a) where
-  toJSON (VSpec tm w h p ds) =
+  toJSON (VSpec tm lm w h p ds) =
     A.object $ ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5, "data" .= ds] ++ opts where
-    opts = case tm of
-      Just t -> ["title" .= t]
-      Nothing -> []
-    
+    opts = maybeSection "title" tm ++
+           maybeSection "legend" lm
+
+maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
+maybeSection st = maybe [] (\t -> [st .= t])
+
 
 
 -- * Title
@@ -93,9 +96,15 @@ instance A.ToJSON TAnchor where
 -- * Legend
 
 data Legend = Legend { lType :: LType, lTitle :: String, lTitleFontsize :: Int } deriving (Eq, Show, Generic)
+instance A.ToJSON Legend where
+  toJSON (Legend lty lt lfs) =
+    A.object ["type" .= lty, "title" .= lt, "titleFontSize" .= lfs]
 
 -- | Legend type
 data LType = LGradient deriving (Eq, Show, Generic)
+instance A.ToJSON LType where
+  toJSON = \case
+    LGradient -> "gradient"
 
 
 -- * Data
@@ -158,9 +167,26 @@ instance A.ToJSON ScaleType where
 
 -- * Axis
 
+data XAxis s = XAxis { xaOrient :: XAxisType, xaScale :: s, xaTitle :: String, xaOffset :: Int, xaTickMinStep :: Int, xaGrid :: Bool } deriving (Eq, Show, Generic)
+instance A.ToJSON s => A.ToJSON (XAxis s) where
+  toJSON (XAxis o s t off tms gr) = A.object ["orient" .= o, "scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+  
+data YAxis s = YAxis { yaOrient :: YAxisType, yaScale :: s, yaTitle :: String, yaOffset :: Int, yaTickMinStep :: Int, yaGrid :: Bool } deriving (Eq, Show, Generic)
+instance A.ToJSON s => A.ToJSON (YAxis s) where
+  toJSON (YAxis o s t off tms gr) = A.object ["orient" .= o, "scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+
 -- | V. axis types
-data VAxis = VALeft | VARight deriving (Eq, Show, Generic)
-data HAxis = HATop  | HABottom deriving (Eq, Show, Generic)
+data XAxisType = HATop  | HABottom deriving (Eq, Show, Generic)
+instance A.ToJSON XAxisType where
+  toJSON = \case
+    HATop -> "top"
+    HABottom -> "bottom"
+data YAxisType = VALeft | VARight deriving (Eq, Show, Generic)
+instance A.ToJSON YAxisType where
+  toJSON = \case
+    VALeft -> "left"
+    VARight -> "right"
+
 
 
 
