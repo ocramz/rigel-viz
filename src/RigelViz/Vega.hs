@@ -1,11 +1,11 @@
 {-# language DeriveGeneric, DeriveDataTypeable, LambdaCase, OverloadedStrings, CPP #-}
 module RigelViz.Vega where
 
-import qualified Data.Set as S
+-- import qualified Data.Set as S
 import GHC.Generics (Generic(..))
 import qualified Data.Aeson as A
 import Data.Aeson ((.=))
-import Data.Char (toLower)
+-- import Data.Char (toLower)
 import qualified Data.Text as T
 -- import qualified Data.Text.Encoding as T (decodeUtf8)
 -- import qualified Data.ByteString as BS hiding (pack)
@@ -17,7 +17,7 @@ import qualified Data.Colour.SRGB as C (sRGB24show)
 import qualified Data.Map as M
 import qualified Data.Vector as V (fromList)
 
-import Data.Typeable (Typeable(..))
+import Data.Typeable (Typeable)
 import Control.Exception (Exception(..))
 import Control.Monad.Catch (MonadThrow(..))
 
@@ -70,11 +70,21 @@ data VSpec r = VSpec {
   , vsWidth :: Int -- ^ plot width [px]
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
+  , vsScales :: Scales  -- ^ scales
   , vsData :: Data r -- ^ data
+  , vsMarks :: Marks -- ^ marks
   } deriving  (Eq, Show, Generic)
 instance A.ToJSON r => A.ToJSON (VSpec r) where
-  toJSON (VSpec tm lm w h p ds) =
-    A.object $ ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5, "data" .= ds] ++ opts where
+  toJSON (VSpec tm lm w h p scs ds mks) =
+    A.object $ [
+        "width" .= w
+      , "height" .= h
+      , "padding" .= p
+      , "$schema" .= schema 5
+      , "scales" .= scs
+      , "data" .= ds
+      , "marks" .= mks
+      ] ++ opts where
     opts = maybeSection "title" tm ++
            maybeSection "legend" lm
 
@@ -233,7 +243,7 @@ instance A.ToJSON Domain where
 
 encodeDomain dats dn df =
   maybeThrow (DataNotFoundE dn) (lookupData dn dats) $ \ _ ->
-    pure $ A.toJSON (Domain dn df)
+    pure $ Domain dn df
 
 
 
@@ -274,49 +284,66 @@ instance A.ToJSON YAxisType where
 
 -- * Mark
 
-data Mark = Mark {
-    markDataFrom :: String  -- ^ "from.data"
-  , markX :: MGeomEnc  -- ^ x
-  , markY :: MGeomEnc  -- ^ y
-  , markGeomEnc :: MarkGE  
-  -- , markColour :: MarkCol
-  } deriving (Eq, Show, Generic)
+newtype Marks = Marks [Mark] deriving (Eq, Show, Generic)
+instance A.ToJSON Marks where
+  toJSON (Marks mks) = A.object ["marks" .= map A.toJSON mks]
+
+-- | Mark geometry encoding
+data Mark =
+    MRectC String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, xc, yc, w, h
+  | MRectV String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, x, y, width, y2
+  | MSymbol String MarkSymbolShape MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, shape, x, y, size
+  | MGroup [Mark] -- ^ "group"
+  deriving (Eq, Show, Generic)
 
 instance A.ToJSON Mark where
-  toJSON (Mark dfrom mx my mge) = case mge of
-    MRectC mw mh -> A.object [
+  toJSON = \case 
+    MGroup mges  -> A.object [
+      "type" .= string "group",
+      "marks" .= map A.toJSON mges
+                             ]
+    MRectC dfrom xc yc w h -> A.object [
         "type" .= string "rect"
       , "from" .= A.object ["data" .= dfrom]
       , "encode" .= A.object [
           "enter" .=
             A.object [
-                "xc" .= mx
-              , "yc" .= my
-              , "width" .= mw
-              , "height" .= mh 
+                "xc" .= xc
+              , "yc" .= yc
+              , "width" .= w
+              , "height" .= h 
               ]
           ]
       ]
-    -- MRectV mw my2 -> A.object [
-    --     "x" .= mx
-    --   , "y" .= my
-    --   , "width" .= mw
-    --   , "y2" .= my2 
-    --                           ]
-    -- MSymbol msh msz -> A.object [
-    --     "shape" .= msh
-    --   , "x" .= mx
-    --   , "y" .= my
-    --   , "size" .= msz
-    --                             ]
+    MRectV dfrom x y w y2 -> A.object [
+        "type" .= string "rect"
+      , "from" .= A.object ["data" .= dfrom]
+      , "encode" .= A.object [
+          "enter" .=
+            A.object [
+                "x" .= x
+              , "y" .= y
+              , "width" .= w
+              , "y2" .= y2
+              ]
+          ]
+      ]
+    MSymbol dfrom msh x y sz -> A.object [
+        "type" .= string "symbol"
+      , "from" .= A.object ["data" .= dfrom]
+      , "encode" .= A.object [
+          "enter" .=
+            A.object [
+                "shape" .= msh
+              , "x" .= x
+              , "y" .= y
+              , "size" .= sz
+              ]
+          ]
+      ]
 
--- | Mark geometry encoding
-data MarkGE =
-    MRectC MGeomEnc MGeomEnc -- ^ (xc, yc,) w, h
-  | MRectV MGeomEnc MGeomEnc -- ^ (x, y,) width, y2
-  | MSymbol MarkSymbolShape MGeomEnc -- ^ shape, (x, y,) size
-  | MGroup [MarkGE] -- ^ "group"
-  deriving (Eq, Show, Generic)
+
+
 
 
 
