@@ -1,4 +1,4 @@
-{-# language DeriveGeneric, LambdaCase, OverloadedStrings, CPP #-}
+{-# language DeriveGeneric, DeriveDataTypeable, LambdaCase, OverloadedStrings, CPP #-}
 module RigelViz.Vega where
 
 import qualified Data.Set as S
@@ -17,6 +17,10 @@ import qualified Data.Colour.SRGB as C (sRGB24show)
 import qualified Data.Map as M
 import qualified Data.Vector as V (fromList)
 
+import Data.Typeable (Typeable(..))
+import Control.Exception (Exception(..))
+import Control.Monad.Catch (MonadThrow(..))
+
 import Prelude hiding (lookup)
 
 #if !MIN_VERSION_base(4,8,0)
@@ -32,6 +36,17 @@ A plot can be seen as a mapping between data features and features of visual mar
 -}
 
 
+-- * Exceptions
+
+data VegaE =
+    DataNotFoundE String
+  | ScaleNotFoundE String
+  deriving (Eq, Typeable)
+instance Show VegaE where
+  show = \case
+    DataNotFoundE dn -> unwords ["dataset <", dn, "> not found"]
+    ScaleNotFoundE dn -> unwords ["scale <", dn, "> not found"]    
+instance Exception VegaE
 
 
 
@@ -63,7 +78,7 @@ instance A.ToJSON r => A.ToJSON (VSpec r) where
     opts = maybeSection "title" tm ++
            maybeSection "legend" lm
 
-vegaSpec = VSpec
+-- vegaSpec = VSpec
 
 maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
 maybeSection st = maybe [] (\t -> [st .= t])
@@ -97,6 +112,10 @@ instance A.ToJSON TAnchor where
     TEnd -> "end"
 
 
+
+
+
+
 -- * Legend
 
 data Legend = Legend { lType :: LType, lTitle :: String, lTitleFontsize :: Int } deriving (Eq, Show, Generic)
@@ -111,19 +130,30 @@ instance A.ToJSON LType where
     LGradient -> "gradient"
 
 
+
+
+
+
+
 -- * Data
 
 -- | Each dataset is labeled by a name string
 -- If the format property is not specified, the data is assumed to be in a row-oriented JSON format.
 
-newtype Data a = Data {
-  unData :: M.Map String (Either String [a])
+newtype Data r = Data {
+  unData :: M.Map String (DataSource r)
                    } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
   toJSON scs = array $ M.foldlWithKey insf [] $ unData scs where
-    insf acc dname ee = case ee of
+    insf acc dname (DataSource ee) = case ee of
       Left durl -> wrap ["name" .= dname, "url" .= durl] ++ acc
       Right dvs -> wrap ["name" .= dname, "values" .= dvs] ++ acc
+
+newtype DataSource r = DataSource (Either String [r]) deriving (Eq, Show, Generic)
+
+lookupData :: String -> Data a -> Maybe (DataSource a)
+lookupData dn (Data dnm) = M.lookup dn dnm
+
 
 
 
@@ -137,6 +167,9 @@ instance A.ToJSON a => A.ToJSON (Data a) where
 -- https://vega.github.io/vega/docs/scales/
 -- | A set of scales is a map from names to 'Scale' metadata
 newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
+
+lookupScale :: String -> Scales -> Maybe Scale
+lookupScale scn (Scales sm) = M.lookup scn sm
 
 instance A.ToJSON Scales where
   toJSON scs = array $ M.foldlWithKey insf [] $ unScales scs where
@@ -163,13 +196,7 @@ instance A.ToJSON Scales where
               , "range" .= map (string . T.pack . C.sRGB24show) cvs
               ]
 
-wrap xs = [ A.object xs ]  
-        
-string :: T.Text -> A.Value
-string = A.String
 
-array :: [A.Value] -> A.Value
-array = A.Array . V.fromList
 
 data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
 
@@ -200,6 +227,11 @@ instance A.ToJSON ColourScheme where
 data Domain = Domain {domainData :: String, domainField :: String} deriving (Eq, Show, Generic)
 instance A.ToJSON Domain where
   toJSON (Domain dd df) = A.object ["data" .= dd, "field" .= df]
+
+
+
+
+
 
 
 -- * Axis
@@ -237,69 +269,105 @@ instance A.ToJSON YAxisType where
 
 -- * Mark
 
-data Mark = Mark MarkGE deriving (Eq, Show, Generic)
+data Mark = Mark {
+    markDataFrom :: String  -- ^ "from.data"
+  , markX :: MGeomEnc  -- ^ x
+  , markY :: MGeomEnc  -- ^ y
+  , markGeomEnc :: MarkGE  
+  -- , markColour :: MarkCol
+  } deriving (Eq, Show, Generic)
+
+instance A.ToJSON Mark where
+  toJSON (Mark dfrom mx my mge) = case mge of
+    MRectC mw mh -> A.object [
+        "type" .= string "rect"
+      , "from" .= A.object ["data" .= dfrom]
+      , "encode" .= A.object [
+          "enter" .=
+            A.object [
+                "xc" .= mx
+              , "yc" .= my
+              , "width" .= mw
+              , "height" .= mh 
+              ]
+          ]
+      ]
+    -- MRectV mw my2 -> A.object [
+    --     "x" .= mx
+    --   , "y" .= my
+    --   , "width" .= mw
+    --   , "y2" .= my2 
+    --                           ]
+    -- MSymbol msh msz -> A.object [
+    --     "shape" .= msh
+    --   , "x" .= mx
+    --   , "y" .= my
+    --   , "size" .= msz
+    --                             ]
 
 -- | Mark geometry encoding
 data MarkGE =
-    MRectC MarkGeomEnc MarkGeomEnc MarkGeomEnc MarkGeomEnc -- ^ xc, yc, w, h
-  | MSymbol MarkSymbolShape MarkGeomEnc MarkGeomEnc MarkGeomEnc -- ^ shape, x, y, size
+    MRectC MGeomEnc MGeomEnc -- ^ (xc, yc,) w, h
+  | MRectV MGeomEnc MGeomEnc -- ^ (x, y,) width, y2
+  | MSymbol MarkSymbolShape MGeomEnc -- ^ shape, (x, y,) size
   | MGroup [MarkGE] -- ^ "group"
   deriving (Eq, Show, Generic)
--- instance A.ToJSON Mark where
---   toJSON = \case
 
 
 
--- -- | mark colour encoding : either a colour or an encoding channel (scale + field)
--- data MarkColEnc =
---     MCECol MarkColour
---   | MCEEncMD EncodingMetadata
+-- -- ** Mark color metadata
+
+-- newtype MarkCol = MarkCol [MarkColType] deriving (Eq, Show, Generic)
+-- instance Semigroup MarkCol where
+--   (MarkCol mc1) <> (MarkCol mc2) = MarkCol $ mc1 <> mc2
+
+-- fill, stroke :: MarkColEnc -> MarkColAlphaEnc -> MarkCol
+-- fill ce ae = MarkCol [MCTFill ce ae]
+-- stroke ce ae = MarkCol [MCTStroke ce ae]
+
+-- data MarkColType =
+--     MCTFill MarkColEnc MarkColAlphaEnc  -- ^ fill
+--   | MCTStroke MarkColEnc MarkColAlphaEnc  -- ^ stroke
 --   deriving (Eq, Show, Generic)
 
--- ** Mark color metadata
+-- -- encodeMarkColTYpe = \case
+-- --   MCTFill mce mcae -> case mce of
+-- --     MCECol c   -> ["fill" .= string (T.pack $ C.sRGB24show c)]
+-- --       -- MCEEnc emd -> []
 
-newtype MarkCol = MarkCol [MarkColType] deriving (Eq, Show, Generic)
-instance Semigroup MarkCol where
-  (MarkCol mc1) <> (MarkCol mc2) = MarkCol $ mc1 <> mc2
+-- data MarkColAlphaEnc =
+--     MCAEAlpha Double         -- ^ constant alpha
+--   | MCAEEnc EncodingMetadata -- ^ alpha encoding channel
+--   deriving (Eq, Show, Generic)
 
-fill, stroke :: MarkColEnc -> MarkColAlphaEnc -> MarkCol
-fill ce ae = MarkCol [MCTFill ce ae]
-stroke ce ae = MarkCol [MCTStroke ce ae]
+-- constAlpha :: Double -> MarkColAlphaEnc
+-- constAlpha = MCAEAlpha
 
-data MarkColType =
-    MCTFill MarkColEnc MarkColAlphaEnc
-  | MCTStroke MarkColEnc MarkColAlphaEnc
-  deriving (Eq, Show, Generic)
+-- encAlpha :: String -> String -> MarkColAlphaEnc
+-- encAlpha es ef = MCAEEnc $ EncMD es ef
 
-data MarkColAlphaEnc =
-    MCAEAlpha Double
-  | MCAEEnc EncodingMetadata
-  deriving (Eq, Show, Generic)
+-- data MarkColEnc =
+--     MCECol (C.Colour Double)  -- ^ constant colour
+--   | MCEEnc EncodingMetadata   -- ^ colour encoding channel
+--   deriving (Eq, Show, Generic)
 
-constAlpha :: Double -> MarkColAlphaEnc
-constAlpha = MCAEAlpha
+-- constCol :: C.Colour Double -> MarkColEnc
+-- constCol = MCECol
 
-encAlpha :: String -> String -> MarkColAlphaEnc
-encAlpha es ef = MCAEEnc $ EncMD es ef
+-- encCol :: String -> String -> MarkColEnc
+-- encCol es ef = MCEEnc $ EncMD es ef
 
-data MarkColEnc =
-    MCECol (C.Colour Double)
-  | MCEEnc EncodingMetadata
-  deriving (Eq, Show, Generic)
 
-constCol :: C.Colour Double -> MarkColEnc
-constCol = MCECol
 
-encCol :: String -> String -> MarkColEnc
-encCol es ef = MCEEnc $ EncMD es ef
+
 
 
 -- | mark geometry encoding : either a value or an encoding channel (scale + field)
-data MarkGeomEnc =
+data MGeomEnc =
     MGEValueFloat Double
   | MGEEncMD EncodingMetadata
   deriving (Eq, Show, Generic)
-instance A.ToJSON MarkGeomEnc where
+instance A.ToJSON MGeomEnc where
   toJSON = \case
     MGEValueFloat x -> A.object ["value" .= x]
     MGEEncMD emd    -> A.toJSON emd
@@ -328,10 +396,19 @@ instance A.ToJSON MarkSymbolShape where
 
 
 
--- ** Mark geometry metadata (position and size)
+-- * 'exceptions' utils
 
--- -- | centered (xc, yc, width, height)
--- data MarkGeomCentered a = MarkGeomC { mgcXc :: a, mgcYc :: a , mgcW :: a, mgcH :: a } deriving (Eq, Show, Generic)
+maybeThrow :: (MonadThrow m, Exception e) =>
+              e -> Maybe a -> (a -> m b) -> m b
+maybeThrow e mx f = maybe (throwM e) f mx
 
--- -- | non centered (x, y, x2, y2)
--- data MarkGeom a = MarkGeom { mgX :: a, mgY :: a , mgX2 :: a, mgY2 :: a } deriving (Eq, Show, Generic)
+-- * 'aeson' utils
+
+wrap :: [(T.Text, A.Value)] -> [A.Value]
+wrap xs = [ A.object xs ]  
+        
+string :: T.Text -> A.Value
+string = A.String
+
+array :: [A.Value] -> A.Value
+array = A.Array . V.fromList
