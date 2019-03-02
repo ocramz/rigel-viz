@@ -258,29 +258,40 @@ data MarkGE =
 
 -- ** Mark color metadata
 
-newtype MarkCol = MarkCol (S.Set MarkColType) deriving (Eq, Show, Generic)
+newtype MarkCol = MarkCol [MarkColType] deriving (Eq, Show, Generic)
 instance Semigroup MarkCol where
   (MarkCol mc1) <> (MarkCol mc2) = MarkCol $ mc1 <> mc2
+
+fill, stroke :: MarkColEnc -> MarkColAlphaEnc -> MarkCol
+fill ce ae = MarkCol [MCTFill ce ae]
+stroke ce ae = MarkCol [MCTStroke ce ae]
 
 data MarkColType =
     MCTFill MarkColEnc MarkColAlphaEnc
   | MCTStroke MarkColEnc MarkColAlphaEnc
-  deriving (Eq, Show, Ord, Generic)
+  deriving (Eq, Show, Generic)
 
 data MarkColAlphaEnc =
     MCAEAlpha Double
   | MCAEEnc EncodingMetadata
   deriving (Eq, Show, Generic)
-instance Ord MarkColAlphaEnc where
-  MCAEAlpha a >= MCAEAlpha b = a >= b
 
+constAlpha :: Double -> MarkColAlphaEnc
+constAlpha = MCAEAlpha
+
+encAlpha :: String -> String -> MarkColAlphaEnc
+encAlpha es ef = MCAEEnc $ EncMD es ef
 
 data MarkColEnc =
     MCECol (C.Colour Double)
   | MCEEnc EncodingMetadata
   deriving (Eq, Show, Generic)
-instance Ord MarkColEnc where
-  MCECol c1 >= MCECol c2 = C.sRGB24show c1 >= C.sRGB24show c2
+
+constCol :: C.Colour Double -> MarkColEnc
+constCol = MCECol
+
+encCol :: String -> String -> MarkColEnc
+encCol es ef = MCEEnc $ EncMD es ef
 
 
 -- | mark geometry encoding : either a value or an encoding channel (scale + field)
