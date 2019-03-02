@@ -45,18 +45,19 @@ schema vn = mconcat ["https://vega.github.io/schema/vega/v", show vn,".json"]
 
 -- | Specification of a vega plot
 --
--- A 'VSpec a' can be encoded into a JSON blob via its 'A.ToJSON' instance.
+-- A 'VSpec r' can be encoded into a JSON blob via its 'A.ToJSON' instance.
 --
--- NB : 'a' is the type of the rows
-data VSpec a = VSpec {
+-- NB : 'r' is the type of the rows
+
+data VSpec r = VSpec {
     vsTitle :: Maybe Title  -- ^ title
   , vsLegend :: Maybe Legend
   , vsWidth :: Int -- ^ plot width [px]
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
-  , vsData :: Data a -- ^ data
+  , vsData :: Data r -- ^ data
   } deriving  (Eq, Show, Generic)
-instance A.ToJSON a => A.ToJSON (VSpec a) where
+instance A.ToJSON r => A.ToJSON (VSpec r) where
   toJSON (VSpec tm lm w h p ds) =
     A.object $ ["width" .= w, "height" .= h, "padding" .= p, "$schema" .= schema 5, "data" .= ds] ++ opts where
     opts = maybeSection "title" tm ++
@@ -111,36 +112,16 @@ instance A.ToJSON LType where
 -- * Data
 
 -- | Each dataset is labeled by a name string
-newtype Datasets a = DS (M.Map String [a]) deriving (Eq, Show)
-
--- | Lookup a dataset by name
-lookupDS :: String -> Datasets a -> Maybe [a]
-lookupDS n (DS dsm) = M.lookup n dsm
-
-singletonDS :: String -> [a] -> Datasets a
-singletonDS n ds = DS $ M.singleton n ds
-
-fromListDS :: [(String, [a])] -> Datasets a
-fromListDS = DS . M.fromList 
-
-data Data a = Data { dataName :: String, dataSource :: DataSource a} deriving (Eq, Show, Generic)
-instance A.ToJSON a => A.ToJSON (Data a) where
-  toJSON (Data dn ds) = let
-    nn = ["name" .= dn]
-    in case ds of
-      DataJSON vs -> A.object $ ("values" .= vs) : nn
-      DataURI u -> A.object $ ("url" .= u) : nn 
-
--- | Data source
 -- If the format property is not specified, the data is assumed to be in a row-oriented JSON format.
-data DataSource a =
-    DataJSON [a]  -- ^ Data row type must have a 'A.ToJSON' instance
-  | DataURI String -- ^ URI or filepath of dataset
-  deriving (Eq, Show, Generic)
--- instance A.ToJSON a => A.ToJSON (DataSource a) where
---   toJSON = \case
---     DataJSON vs -> A.object ["values" .= vs]
---     DataURI u   -> A.object ["url" .= u]
+
+newtype Data a = Data {
+  unData :: M.Map String (Either String [a])
+                   } deriving (Eq, Show, Generic)
+instance A.ToJSON a => A.ToJSON (Data a) where
+  toJSON scs = array $ M.foldlWithKey insf [] $ unData scs where
+    insf acc dname ee = case ee of
+      Left durl -> wrap ["name" .= dname, "url" .= durl] ++ acc
+      Right dvs -> wrap ["name" .= dname, "values" .= dvs] ++ acc
 
 
 
@@ -157,7 +138,6 @@ newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, G
 
 instance A.ToJSON Scales where
   toJSON scs = array $ M.foldlWithKey insf [] $ unScales scs where
-    wrap xs = [ A.object xs ]  
     insf acc scName (Scale sty sd) = wrap (["name" .= scName, "domain" .= sd] ++ opts) ++ acc
       where
         opts = case sty of
@@ -180,6 +160,8 @@ instance A.ToJSON Scales where
                 "type" .= string "ordinal"
               , "range" .= map (string . T.pack . C.sRGB24show) cvs
               ]
+
+wrap xs = [ A.object xs ]  
         
 string :: T.Text -> A.Value
 string = A.String
