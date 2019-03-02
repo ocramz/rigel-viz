@@ -63,6 +63,8 @@ instance A.ToJSON r => A.ToJSON (VSpec r) where
     opts = maybeSection "title" tm ++
            maybeSection "legend" lm
 
+vegaSpec = VSpec
+
 maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
 maybeSection st = maybe [] (\t -> [st .= t])
 
@@ -235,46 +237,84 @@ instance A.ToJSON YAxisType where
 
 -- * Mark
 
+data Mark = Mark MarkGE deriving (Eq, Show, Generic)
 
-
--- | Mark alternatives
-data Mark =
-    MRectC {mrXc :: MarkEncoding, mrYc :: MarkEncoding, mrW :: MarkEncoding, mrH :: MarkEncoding}
-  | MSymbol MarkSymbolShape
-  | MGroup [Mark] -- ^ "group"
+-- | Mark geometry encoding
+data MarkGE =
+    MRectC MarkGeomEnc MarkGeomEnc MarkGeomEnc MarkGeomEnc -- ^ xc, yc, w, h
+  | MSymbol MarkSymbolShape MarkGeomEnc MarkGeomEnc MarkGeomEnc -- ^ shape, x, y, size
+  | MGroup [MarkGE] -- ^ "group"
   deriving (Eq, Show, Generic)
 -- instance A.ToJSON Mark where
 --   toJSON = \case
 
--- | Each mark encoding can be either a value or an encoding channel (scale + field)
-data MarkEncoding =
-    MEValueFloat Double
-  | MEEncMD EncodingMetadata
+
+
+-- -- | mark colour encoding : either a colour or an encoding channel (scale + field)
+-- data MarkColEnc =
+--     MCECol MarkColour
+--   | MCEEncMD EncodingMetadata
+--   deriving (Eq, Show, Generic)
+
+-- ** Mark color metadata
+
+newtype MarkCol = MarkCol (S.Set MarkColType) deriving (Eq, Show, Generic)
+instance Semigroup MarkCol where
+  (MarkCol mc1) <> (MarkCol mc2) = MarkCol $ mc1 <> mc2
+
+data MarkColType =
+    MCTFill MarkColEnc MarkColAlphaEnc
+  | MCTStroke MarkColEnc MarkColAlphaEnc
+  deriving (Eq, Show, Ord, Generic)
+
+data MarkColAlphaEnc =
+    MCAEAlpha Double
+  | MCAEEnc EncodingMetadata
   deriving (Eq, Show, Generic)
+instance Ord MarkColAlphaEnc where
+  MCAEAlpha a >= MCAEAlpha b = a >= b
+
+
+data MarkColEnc =
+    MCECol (C.Colour Double)
+  | MCEEnc EncodingMetadata
+  deriving (Eq, Show, Generic)
+instance Ord MarkColEnc where
+  MCECol c1 >= MCECol c2 = C.sRGB24show c1 >= C.sRGB24show c2
+
+
+-- | mark geometry encoding : either a value or an encoding channel (scale + field)
+data MarkGeomEnc =
+    MGEValueFloat Double
+  | MGEEncMD EncodingMetadata
+  deriving (Eq, Show, Generic)
+instance A.ToJSON MarkGeomEnc where
+  toJSON = \case
+    MGEValueFloat x -> A.object ["value" .= x]
+    MGEEncMD emd    -> A.toJSON emd
 
 -- | Scale metadata to encode one mark feature
+--
+-- NB : the 'emdScale' field must be the name to an existing 'Scale'
 data EncodingMetadata = EncMD {
-    emdScale :: Scale      -- ^ which 'scale' is the data encoded with
+    emdScale :: String      -- ^ which 'scale' is the data encoded with
   , emdField :: String -- ^ what data field is used
-  } deriving (Eq, Show, Generic)
-
+  } deriving (Eq, Show, Ord, Generic)
+instance A.ToJSON EncodingMetadata where
+  toJSON (EncMD sc scf) = A.object ["scale" .= sc, "field" .= scf]
 
 -- | Shapes for the "symbol" Mark
 data MarkSymbolShape =
     MSSCircle  -- ^ "circle"
   | MSSCross   -- ^ "cross"
   deriving (Eq, Show, Generic)
+instance A.ToJSON MarkSymbolShape where
+  toJSON = \case
+    MSSCircle -> "circle"
+    MSSCross  -> "cross"
 
 
--- ** Mark color metadata
 
--- | A shape can be coloured in three ways : fill only, stroke (border) only, both fill and stroke
-data MarkColour = MCFill Colour
-  | MCStroke Colour
-  | MCBoth Colour Colour
-  deriving (Eq, Show, Generic)
-
-data Colour = Colour { cFill :: C.Colour Double, cAlpha :: Double } deriving (Eq, Show, Generic)
 
 
 -- ** Mark geometry metadata (position and size)
