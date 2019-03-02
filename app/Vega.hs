@@ -21,7 +21,7 @@ import RigelViz.Util (V3(..), dats, pprint)
 main = putStrLn "hello!"
 
 
-vs0 = vegaSpec Nothing Nothing 400 300 0 
+vs0 = vegaSpec Nothing Nothing 400 300 0
 
 
 
