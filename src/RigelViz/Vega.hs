@@ -154,26 +154,64 @@ data DataSource a =
 -- | Scale types
 -- 
 -- https://vega.github.io/vega/docs/scales/#types
-data ScaleType = STLinear | STLog | STTime | STBand | STPoint deriving (Eq, Show, Generic)
-instance A.ToJSON ScaleType where
-  toJSON = \case
-    STLinear -> "linear"
-    STLog    -> "log"
-    STTime   -> "time"
-    STBand   -> "band"
-    STPoint  -> "point"
+-- data ScaleType = STLinear | STLog | STTime | STBand | STPoint deriving (Eq, Show, Generic)
+-- instance A.ToJSON ScaleType where
+--   toJSON = \case
+--     STLinear -> "linear"
+--     STLog    -> "log"
+--     STTime   -> "time"
+--     STBand   -> "band"
+--     STPoint  -> "point"
 
+-- | A set of scales is a map from names to 'Scale' metadata
+newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
+-- instance A.ToJSON Scales where
+--   toJSON
+
+scsToJSON scs = M.foldlWithKey insf [] $ unScales scs where
+  wrap xs = [ A.object xs ]  
+  insf acc scName (Scale sty sd) = wrap ["name" .= scName]
+
+data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
+
+data ScaleType =
+    STLinear Domain Range  -- ^ data : linear
+  | STBand { stBandPadding :: Double, stBandRange :: Range }    -- ^ data : band
+  | STColours Colours  -- ^ colours : linear or band 
+  deriving (Eq, Show, Generic)
+
+data Range = Width | Height deriving (Eq, Show, Generic)
+
+data Colours =
+    ColScheme ColourScheme
+  | ColValues [C.Colour Double]  -- ^ A list of colours for a discrete palette
+  deriving (Eq, Show, Generic)
+
+-- | Colour schemes for e.g. heatmaps
+data ColourScheme = CSPlasma deriving (Eq, Show, Generic)
+
+
+data Domain = Domain {domainData :: String, domainField :: String} deriving (Eq, Show, Generic)
+instance A.ToJSON Domain where
+  toJSON (Domain dd df) = A.object ["data" .= dd, "field" .= df]
 
 
 -- * Axis
 
-data XAxis s = XAxis { xaOrient :: XAxisType, xaScale :: s, xaTitle :: String, xaOffset :: Int, xaTickMinStep :: Int, xaGrid :: Bool } deriving (Eq, Show, Generic)
-instance A.ToJSON s => A.ToJSON (XAxis s) where
-  toJSON (XAxis o s t off tms gr) = A.object ["orient" .= o, "scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+data XAxis = XAxis { xaOrient :: XAxisType, xaMD :: AxisMetadata } deriving (Eq, Show, Generic)
+instance A.ToJSON XAxis where
+  toJSON (XAxis o amd) = A.object $ ("orient" .= o) : axisMDPairs amd
   
-data YAxis s = YAxis { yaOrient :: YAxisType, yaScale :: s, yaTitle :: String, yaOffset :: Int, yaTickMinStep :: Int, yaGrid :: Bool } deriving (Eq, Show, Generic)
+data YAxis s = YAxis { yaOrient :: YAxisType, yaMD :: AxisMetadata } deriving (Eq, Show, Generic)
 instance A.ToJSON s => A.ToJSON (YAxis s) where
-  toJSON (YAxis o s t off tms gr) = A.object ["orient" .= o, "scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+  toJSON (YAxis o amd) = A.object $ ("orient" .= o) : axisMDPairs amd
+
+axisMDPairs :: A.KeyValue a => AxisMetadata -> [a]
+axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+
+data AxisMetadata = AxisMD { axScale :: String, axTitle :: String, axOffset :: Int, axTixkMinStep :: Int, axGrid :: Bool} deriving (Eq, Show, Generic)
+
+
 
 -- | V. axis types
 data XAxisType = HATop  | HABottom deriving (Eq, Show, Generic)
