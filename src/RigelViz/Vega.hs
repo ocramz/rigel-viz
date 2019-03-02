@@ -71,24 +71,37 @@ data VSpec r = VSpec {
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
   , vsScales :: Scales  -- ^ scales
+  , vsAxes :: [Axis]  -- ^ axes
   , vsData :: Data r -- ^ data
   , vsMarks :: Marks -- ^ marks
   } deriving  (Eq, Show, Generic)
 instance A.ToJSON r => A.ToJSON (VSpec r) where
-  toJSON (VSpec tm lm w h p scs ds mks) =
+  toJSON (VSpec tm lm w h p scs axs ds mks) =
     A.object $ [
         "width" .= w
       , "height" .= h
       , "padding" .= p
       , "$schema" .= schema 5
       , "scales" .= scs
+      , "axes" .= axs
       , "data" .= ds
       , "marks" .= mks
       ] ++ opts where
     opts = maybeSection "title" tm ++
            maybeSection "legend" lm
-
--- vegaSpec = VSpec
+           
+vegaSpec
+  :: Maybe Title
+  -> Maybe Legend
+  -> Int
+  -> Int
+  -> Int
+  -> Scales
+  -> [Axis]
+  -> Data r
+  -> Marks
+  -> VSpec r
+vegaSpec = VSpec
 
 maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
 maybeSection st = maybe [] (\t -> [st .= t])
@@ -181,6 +194,9 @@ lookupData dn (Data dnm) = M.lookup dn dnm
 -- | A set of scales is a map from names to 'Scale' metadata
 newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
 
+instance Semigroup Scales where
+  (Scales scs1) <> (Scales scs2) = Scales $ scs1 <> scs2
+
 lookupScale :: String -> Scales -> Maybe Scale
 lookupScale scn (Scales sm) = M.lookup scn sm
 
@@ -209,6 +225,13 @@ instance A.ToJSON Scales where
               , "range" .= map (string . T.pack . C.sRGB24show) cvs
               ]
 
+
+mkScale :: Data a -> String -> String -> ScaleType -> Maybe Scale
+mkScale dat dname dfield stype = do
+  _ <- lookupData dname dat
+  let dom = Domain dname dfield
+  pure $ Scale stype dom
+  
 
 
 data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
@@ -251,13 +274,14 @@ encodeDomain dats dn df =
 
 -- * Axis
 
-data XAxis = XAxis { xaOrient :: XAxisType, xaMD :: AxisMetadata } deriving (Eq, Show, Generic)
-instance A.ToJSON XAxis where
-  toJSON (XAxis o amd) = A.object $ ("orient" .= o) : axisMDPairs amd
-  
-data YAxis s = YAxis { yaOrient :: YAxisType, yaMD :: AxisMetadata } deriving (Eq, Show, Generic)
-instance A.ToJSON s => A.ToJSON (YAxis s) where
-  toJSON (YAxis o amd) = A.object $ ("orient" .= o) : axisMDPairs amd
+data Axis =
+    XAxis XAxisType AxisMetadata
+  | YAxis YAxisType AxisMetadata
+  deriving (Eq, Show, Generic)
+instance A.ToJSON Axis where
+  toJSON = \case
+    XAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
+    YAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
 
 axisMDPairs :: A.KeyValue a => AxisMetadata -> [a]
 axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]

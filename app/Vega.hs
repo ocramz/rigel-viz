@@ -15,11 +15,13 @@ import qualified Data.Colour.SRGB as C (sRGB24show)
 
 import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
-import qualified RigelViz.Vega as Vega
-
+import RigelViz.Vega
+import RigelViz.Util (V3(..), dats, pprint)
 
 main = putStrLn "hello!"
 
+
+vs0 = vegaSpec Nothing Nothing 400 300 0
 
 
 

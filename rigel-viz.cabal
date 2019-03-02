@@ -39,7 +39,7 @@ executable vega
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   hs-source-dirs:      app
   main-is:             Vega.hs
-  other-modules:       Utils
+  other-modules:       RigelViz.Util
   build-depends:       base
                      , rigel-viz
                      , aeson
@@ -65,16 +65,16 @@ executable vega
 --                      , lucid-extras >= 0.2.2
 
 
-test-suite spec
-  default-language:    Haskell2010
-  ghc-options:         -Wall
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  build-depends:       base
-                     , rigel-viz
-                     , hspec
-                     , QuickCheck
+-- test-suite spec
+--   default-language:    Haskell2010
+--   ghc-options:         -Wall
+--   type:                exitcode-stdio-1.0
+--   hs-source-dirs:      test
+--   main-is:             Spec.hs
+--   build-depends:       base
+--                      , rigel-viz
+--                      , hspec
+--                      , QuickCheck
 
 source-repository head
   type:     git
