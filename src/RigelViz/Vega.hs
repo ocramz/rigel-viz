@@ -15,6 +15,7 @@ import qualified Data.Text as T
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 import qualified Data.Map as M
+import qualified Data.Vector as V (fromList)
 
 import Prelude hiding (lookup)
 
@@ -147,40 +148,58 @@ data DataSource a =
 
 
 -- * Scale
--- newtype Scales a = Scs (M.Map String)
 
--- data Scale = Scale {scaleName :: String, scaleType :: ScaleType } deriving (Eq, Show, Generic)
-
--- | Scale types
+-- | Scales
 -- 
--- https://vega.github.io/vega/docs/scales/#types
--- data ScaleType = STLinear | STLog | STTime | STBand | STPoint deriving (Eq, Show, Generic)
--- instance A.ToJSON ScaleType where
---   toJSON = \case
---     STLinear -> "linear"
---     STLog    -> "log"
---     STTime   -> "time"
---     STBand   -> "band"
---     STPoint  -> "point"
-
+-- https://vega.github.io/vega/docs/scales/
 -- | A set of scales is a map from names to 'Scale' metadata
 newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
--- instance A.ToJSON Scales where
---   toJSON
 
-scsToJSON scs = M.foldlWithKey insf [] $ unScales scs where
-  wrap xs = [ A.object xs ]  
-  insf acc scName (Scale sty sd) = wrap ["name" .= scName]
+instance A.ToJSON Scales where
+  toJSON scs = array $ M.foldlWithKey insf [] $ unScales scs where
+    wrap xs = [ A.object xs ]  
+    insf acc scName (Scale sty sd) = wrap (["name" .= scName, "domain" .= sd] ++ opts) ++ acc
+      where
+        opts = case sty of
+          STLinear r zb  -> [
+            "type"    .= string "linear"
+            , "range"   .= r
+            , "zero"    .= zb 
+            ]
+          STBand pad r   -> [
+            "type"    .= string "band"
+            , "range" .= r
+            , "padding" .= pad
+            ]
+          STColours cols -> case cols of
+            ColScheme cs -> [
+              "type" .= string "linear"
+              , "range" .= A.object ["scheme" .= cs]
+              ]
+            ColValues cvs -> [
+              "type" .= string "ordinal"
+              , "range" .= map (string . T.pack . C.sRGB24show) cvs
+              ]
+        
+string :: T.Text -> A.Value
+string = A.String
+
+array :: [A.Value] -> A.Value
+array = A.Array . V.fromList
 
 data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
 
 data ScaleType =
-    STLinear Domain Range  -- ^ data : linear
-  | STBand { stBandPadding :: Double, stBandRange :: Range }    -- ^ data : band
+    STLinear PlotRange Bool  -- ^ data : linear
+  | STBand { stBandPadding :: Double, stBandRange :: PlotRange }    -- ^ data : band
   | STColours Colours  -- ^ colours : linear or band 
   deriving (Eq, Show, Generic)
 
-data Range = Width | Height deriving (Eq, Show, Generic)
+data PlotRange = Width | Height deriving (Eq, Show, Generic)
+instance A.ToJSON PlotRange where
+  toJSON = \case
+    Width -> "width"
+    Height -> "height"
 
 data Colours =
     ColScheme ColourScheme
@@ -189,6 +208,9 @@ data Colours =
 
 -- | Colour schemes for e.g. heatmaps
 data ColourScheme = CSPlasma deriving (Eq, Show, Generic)
+instance A.ToJSON ColourScheme where
+  toJSON = \case
+    CSPlasma -> "plasma"
 
 
 data Domain = Domain {domainData :: String, domainField :: String} deriving (Eq, Show, Generic)
