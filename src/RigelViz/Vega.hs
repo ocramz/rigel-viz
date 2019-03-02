@@ -145,11 +145,14 @@ newtype Data r = Data {
                    } deriving (Eq, Show, Generic)
 instance A.ToJSON a => A.ToJSON (Data a) where
   toJSON scs = array $ M.foldlWithKey insf [] $ unData scs where
-    insf acc dname (DataSource ee) = case ee of
-      Left durl -> wrap ["name" .= dname, "url" .= durl] ++ acc
-      Right dvs -> wrap ["name" .= dname, "values" .= dvs] ++ acc
+    insf acc dname ds = case ds of
+      DsURI durl -> wrap ["name" .= dname, "url" .= durl] ++ acc
+      DsJSON dvs -> wrap ["name" .= dname, "values" .= dvs] ++ acc
 
-newtype DataSource r = DataSource (Either String [r]) deriving (Eq, Show, Generic)
+data DataSource r =
+    DsURI String
+  | DsJSON [r]
+  deriving (Eq, Show, Generic)
 
 lookupData :: String -> Data a -> Maybe (DataSource a)
 lookupData dn (Data dnm) = M.lookup dn dnm
@@ -202,7 +205,7 @@ data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (E
 
 data ScaleType =
     STLinear PlotRange Bool  -- ^ data : linear
-  | STBand { stBandPadding :: Double, stBandRange :: PlotRange }    -- ^ data : band
+  | STBand { stBandPadding :: Double, stBandRange :: PlotRange }  -- ^ data : band
   | STColours Colours  -- ^ colours : linear or band 
   deriving (Eq, Show, Generic)
 
@@ -228,7 +231,9 @@ data Domain = Domain {domainData :: String, domainField :: String} deriving (Eq,
 instance A.ToJSON Domain where
   toJSON (Domain dd df) = A.object ["data" .= dd, "field" .= df]
 
-
+encodeDomain dats dn df =
+  maybeThrow (DataNotFoundE dn) (lookupData dn dats) $ \ _ ->
+    pure $ A.toJSON (Domain dn df)
 
 
 
