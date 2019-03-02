@@ -435,6 +435,14 @@ instance A.ToJSON MGeomEnc where
     MGEValueFloat x -> A.object ["value" .= x]
     MGEEncMD emd    -> A.toJSON emd
 
+constG = MGEValueFloat
+
+-- build 'EncodingMetadata' only if the referred 'Scale' exists
+mkEncMD :: Scales -> String -> String -> Maybe EncodingMetadata
+mkEncMD scs sname emf = do
+  _ <- lookupScale sname scs
+  pure $ EncMD sname emf
+
 -- | Scale metadata to encode one mark feature
 --
 -- NB : the 'emdScale' field must be the name to an existing 'Scale'
