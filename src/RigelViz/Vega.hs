@@ -162,22 +162,22 @@ instance A.ToJSON Scales where
       where
         opts = case sty of
           STLinear r zb  -> [
-            "type"    .= string "linear"
+              "type"    .= string "linear"
             , "range"   .= r
             , "zero"    .= zb 
             ]
           STBand pad r   -> [
-            "type"    .= string "band"
+              "type"    .= string "band"
             , "range" .= r
             , "padding" .= pad
             ]
           STColours cols -> case cols of
             ColScheme cs -> [
-              "type" .= string "linear"
+                "type" .= string "linear"
               , "range" .= A.object ["scheme" .= cs]
               ]
             ColValues cvs -> [
-              "type" .= string "ordinal"
+                "type" .= string "ordinal"
               , "range" .= map (string . T.pack . C.sRGB24show) cvs
               ]
         
@@ -253,42 +253,52 @@ instance A.ToJSON YAxisType where
 
 -- * Mark
 
+
+
+-- | Mark alternatives
+data Mark =
+    MRectC {mrXc :: MarkEncoding, mrYc :: MarkEncoding, mrW :: MarkEncoding, mrH :: MarkEncoding}
+  | MSymbol MarkSymbolShape
+  | MGroup [Mark] -- ^ "group"
+  deriving (Eq, Show, Generic)
+-- instance A.ToJSON Mark where
+--   toJSON = \case
+
+-- | Each mark encoding can be either a value or an encoding channel (scale + field)
+data MarkEncoding =
+    MEValueFloat Double
+  | MEEncMD EncodingMetadata
+  deriving (Eq, Show, Generic)
+
 -- | Scale metadata to encode one mark feature
-data EncodingMetadata s = EncMD {
-    emdScale :: s      -- ^ which 'scale' is the data encoded with
+data EncodingMetadata = EncMD {
+    emdScale :: Scale      -- ^ which 'scale' is the data encoded with
   , emdField :: String -- ^ what data field is used
   } deriving (Eq, Show, Generic)
 
--- | Mark type alternatives
-data MarkType =
-    MCircle -- ^ "circle"
-  | MRect   -- ^ "rect"
-  | MArea   -- ^ "area"
-  | MRule   -- ^ "rule"
-  | MLine   -- ^ "line"
-  | MGroup  -- ^ "group"
+
+-- | Shapes for the "symbol" Mark
+data MarkSymbolShape =
+    MSSCircle  -- ^ "circle"
+  | MSSCross   -- ^ "cross"
   deriving (Eq, Show, Generic)
-instance A.ToJSON MarkType where
-  toJSON = \case
-    MCircle -> "circle"
-    MRect   -> "rect"
-    MArea   -> "area"
-    MRule   -> "rule"
-    MLine   -> "line"
-    MGroup  -> "group"
+
 
 -- ** Mark color metadata
 
 -- | A shape can be coloured in three ways : fill only, stroke (border) only, both fill and stroke
-data MarkColour = MCFill Colour | MCStroke Colour | MCBoth Colour Colour deriving (Eq, Show, Generic)
+data MarkColour = MCFill Colour
+  | MCStroke Colour
+  | MCBoth Colour Colour
+  deriving (Eq, Show, Generic)
 
 data Colour = Colour { cFill :: C.Colour Double, cAlpha :: Double } deriving (Eq, Show, Generic)
 
 
 -- ** Mark geometry metadata (position and size)
 
--- | centered (xc, yc, width, height)
-data MarkGeomCentered a = MarkGeomC { mgcXc :: a, mgcYc :: a , mgcW :: a, mgcH :: a } deriving (Eq, Show, Generic)
+-- -- | centered (xc, yc, width, height)
+-- data MarkGeomCentered a = MarkGeomC { mgcXc :: a, mgcYc :: a , mgcW :: a, mgcH :: a } deriving (Eq, Show, Generic)
 
--- | non centered (x, y, x2, y2)
-data MarkGeom a = MarkGeom { mgX :: a, mgY :: a , mgX2 :: a, mgY2 :: a } deriving (Eq, Show, Generic)
+-- -- | non centered (x, y, x2, y2)
+-- data MarkGeom a = MarkGeom { mgX :: a, mgY :: a , mgX2 :: a, mgY2 :: a } deriving (Eq, Show, Generic)
