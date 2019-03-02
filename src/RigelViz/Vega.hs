@@ -226,6 +226,7 @@ instance A.ToJSON Scales where
               ]
 
 
+-- crate a 'Scale' only if the referred 'Data'set exists
 mkScale :: Data a -> String -> String -> ScaleType -> Maybe Scale
 mkScale dat dname dfield stype = do
   _ <- lookupData dname dat
@@ -287,6 +288,12 @@ axisMDPairs :: A.KeyValue a => AxisMetadata -> [a]
 axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
 
 data AxisMetadata = AxisMD { axScale :: String, axTitle :: String, axOffset :: Int, axTixkMinStep :: Int, axGrid :: Bool} deriving (Eq, Show, Generic)
+
+-- create axis metadata only if the referred 'Scale' exists
+mkAxisMD :: Scales -> String -> String -> Int -> Int -> Bool -> Maybe AxisMetadata
+mkAxisMD scs scname axt axoff axtms axgr = do
+  _ <- lookupScale scname scs
+  pure $ AxisMD scname axt axoff axtms axgr
 
 
 
