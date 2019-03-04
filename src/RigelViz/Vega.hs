@@ -1,4 +1,6 @@
 {-# language DeriveGeneric, DeriveDataTypeable, LambdaCase, OverloadedStrings, CPP #-}
+-- {-# language GADTs #-}
+{-# language GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 module RigelViz.Vega where
 
 -- import qualified Data.Set as S
@@ -21,6 +23,8 @@ import Data.Typeable (Typeable)
 import Control.Exception (Exception(..))
 import Control.Monad.Catch (MonadThrow(..))
 
+import Control.Monad.State
+
 import Prelude hiding (lookup)
 
 #if !MIN_VERSION_base(4,8,0)
@@ -34,6 +38,59 @@ A plot can be seen as a mapping between data features and features of visual mar
   * line chart : data.x -> X, data.y -> Y
   * heatmap    : data.x -> X, data.y -> Y, data.z -> COLOUR
 -}
+
+
+
+
+-- data Internal r = Internal {
+--     internalData :: M.Map String (Data r)
+--   , internalScales :: M.Map String Scale
+--   }
+
+-- newtype App r a = App { unApp :: State (Internal r) a} deriving (Functor, Applicative, Monad)
+-- -- instance Monad m => MonadState (Internal r) (App r m)
+
+-- runApp :: App r a -> Internal r -> (a, Internal r)
+-- runApp app = runState (unApp app)
+
+
+-- append :: Ord i => a -> ([i], M.Map i a) -> ([i], M.Map i a)
+-- append x (n:ns, mm) = (ns, mm') where mm' = M.insert n x mm
+
+
+data Supply i n a = Supply { getSupply :: [i], items :: M.Map n a }
+
+intSupply :: Supply Int n a
+intSupply = Supply [0 ..] M.empty
+
+append :: Ord n => (i -> n) -> a -> Supply i n a -> Supply i n a
+append f x (Supply (n:ns) mm) = Supply ns mm' where
+  mm' = M.insert (f n) x mm
+
+appendWithPrefix :: Show i => String -> a -> Supply i String a -> Supply i String a
+appendWithPrefix p = append (\n -> mconcat [p, show n])  
+
+-- newtype App i r a = App { unApp :: State (Supply i r) a }
+--    deriving (Functor, Applicative, Monad, MonadState (Supply i r))
+
+-- withSupply :: r -> App r ()
+-- withSupply x = modify (append x)
+  
+
+-- runApp a = runState (unApp a) -- intSupply
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 -- * Exceptions
@@ -70,38 +127,38 @@ data VSpec r = VSpec {
   , vsWidth :: Int -- ^ plot width [px]
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
-  , vsScales :: Scales  -- ^ scales
+  -- , vsScales :: Scales  -- ^ scales
   , vsAxes :: [Axis]  -- ^ axes
   , vsData :: Data r -- ^ data
   , vsMarks :: Marks -- ^ marks
   } deriving  (Eq, Show, Generic)
-instance A.ToJSON r => A.ToJSON (VSpec r) where
-  toJSON (VSpec tm lm w h p scs axs ds mks) =
-    A.object $ [
-        "width" .= w
-      , "height" .= h
-      , "padding" .= p
-      , "$schema" .= schema 5
-      , "scales" .= scs
-      , "axes" .= axs
-      , "data" .= ds
-      , "marks" .= mks
-      ] ++ opts where
-    opts = maybeSection "title" tm ++
-           maybeSection "legend" lm
+-- instance A.ToJSON r => A.ToJSON (VSpec r) where
+--   toJSON (VSpec tm lm w h p _ axs ds mks) =
+--     A.object $ [
+--         "width" .= w
+--       , "height" .= h
+--       , "padding" .= p
+--       , "$schema" .= schema 5
+--       -- , "scales" .= scs
+--       , "axes" .= axs
+--       , "data" .= ds
+--       , "marks" .= mks
+--       ] ++ opts where
+--     opts = maybeSection "title" tm ++
+--            maybeSection "legend" lm
            
-vegaSpec
-  :: Maybe Title
-  -> Maybe Legend
-  -> Int
-  -> Int
-  -> Int
-  -> Scales
-  -> [Axis]
-  -> Data r
-  -> Marks
-  -> VSpec r
-vegaSpec = VSpec
+-- vegaSpec
+--   :: Maybe Title
+--   -> Maybe Legend
+--   -> Int
+--   -> Int
+--   -> Int
+--   -> Scales
+--   -> [Axis]
+--   -> Data r
+--   -> Marks
+--   -> VSpec r
+-- vegaSpec = VSpec
 
 maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
 maybeSection st = maybe [] (\t -> [st .= t])
@@ -177,6 +234,9 @@ data DataSource r =
   | DsJSON [r]
   deriving (Eq, Show, Generic)
 
+mkDataJson :: String -> [r] -> Data r
+mkDataJson dn rs = Data $ M.singleton dn $ DsJSON rs
+
 lookupData :: String -> Data a -> Maybe (DataSource a)
 lookupData dn (Data dnm) = M.lookup dn dnm
 
@@ -192,72 +252,102 @@ lookupData dn (Data dnm) = M.lookup dn dnm
 -- 
 -- https://vega.github.io/vega/docs/scales/
 -- | A set of scales is a map from names to 'Scale' metadata
-newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
+-- newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
 
-instance Semigroup Scales where
-  (Scales scs1) <> (Scales scs2) = Scales $ scs1 <> scs2
+-- namedScale :: String -> Scale -> Scales
+-- namedScale sn s = Scales $ M.singleton sn s
 
-lookupScale :: String -> Scales -> Maybe Scale
-lookupScale scn (Scales sm) = M.lookup scn sm
+-- instance Semigroup Scales where
+--   (Scales scs1) <> (Scales scs2) = Scales $ scs1 <> scs2
 
-instance A.ToJSON Scales where
-  toJSON scs = array $ M.foldlWithKey insf [] $ unScales scs where
-    insf acc scName (Scale sty sd) = wrap (["name" .= scName, "domain" .= sd] ++ opts) ++ acc
-      where
-        opts = case sty of
-          STLinear r zb  -> [
-              "type"    .= string "linear"
-            , "range"   .= r
-            , "zero"    .= zb 
-            ]
-          STBand pad r   -> [
-              "type"    .= string "band"
-            , "range" .= r
-            , "padding" .= pad
-            ]
-          STColours cols -> case cols of
-            ColScheme cs -> [
-                "type" .= string "linear"
-              , "range" .= A.object ["scheme" .= cs]
-              ]
-            ColValues cvs -> [
-                "type" .= string "ordinal"
-              , "range" .= map (string . T.pack . C.sRGB24show) cvs
-              ]
+-- lookupScale :: String -> Scales -> Maybe Scale
+-- lookupScale scn (Scales sm) = M.lookup scn sm
+
+-- instance A.ToJSON Scales where
+--   toJSON scs = array $ M.foldlWithKey insf [] $ unScales scs where
+--     insf acc scName (Scale sty sd) = wrap (["name" .= scName, "domain" .= sd] ++ opts) ++ acc
+--       where
+--         opts = case sty of
+--           STLinear r zb  -> [
+--               "type"    .= string "linear"
+--             , "range"   .= r
+--             , "zero"    .= zb 
+--             ]
+--           STBand pad r   -> [
+--               "type"    .= string "band"
+--             , "range" .= r
+--             , "padding" .= pad
+--             ]
+--           STColours cols -> case cols of
+--             ColScheme cs -> [
+--                 "type" .= string "linear"
+--               , "range" .= A.object ["scheme" .= cs]
+--               ]
+--             ColValues cvs -> [
+--                 "type" .= string "ordinal"
+--               , "range" .= map (string . T.pack . C.sRGB24show) cvs
+--               ]
 
 
--- crate a 'Scale' only if the referred 'Data'set exists
-mkScale ::
-     Data a
-  -> String   -- ^ dataset name 
-  -> String   -- ^ data field
-  -> ScaleType 
-  -> Maybe Scale
-mkScale dat dname dfield stype = do
-  _ <- lookupData dname dat
-  let dom = Domain dname dfield
-  pure $ Scale stype dom
+-- -- crate a 'Scale' only if the referred 'Data'set exists
+-- mkScale ::
+--      Data a
+--   -> String   -- ^ dataset name 
+--   -> String   -- ^ data field
+--   -> ScaleType 
+--   -> Maybe Scale
+-- mkScale dat dname dfield stype = do
+--   _ <- lookupData dname dat
+--   let dom = Domain dname dfield
+--   pure $ Scale stype dom
+
+
+
+
+
+
+newtype ScaleMap v = ScaleMap { unSM :: M.Map String (Channel v) } deriving (Show)
+
+instance Semigroup (ScaleMap v) where
+  (ScaleMap sm1) <> (ScaleMap sm2) = ScaleMap $ sm1 <> sm2
+
+-- | Encoding channels for marks
+data Channel v =
+    CLinearValue ScaleP PlotRange Bool v  -- "y": {"scale": "scy", "value": 0}  -- linear
+  | CLinearField ScaleP PlotRange Bool String  -- "x": {"scale": "scx", "field": "a"}  -- linear
+  | CBand ScaleP Double PlotRange Double Double -- "width": {"scale": "scw", "band" : 1}   -- band
+  | CColourScheme ScaleP ColourScheme  -- linear or band
+  | COrdinalCol ScaleP [C.Colour Double] -- ordinal   
+  | CConst v -- "fillOpacity": {"value": 0.5}
+  deriving (Show)
+
+data ScaleP = ScaleP {
+    spDomainData :: String   -- ^ dataset name 
+  , spDomainField :: String  -- ^ field the scale is built with
+  , spRangeField :: String   -- ^ field used by the encoding channel
+                                 } deriving (Show)
   
 
 
-data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
 
-data ScaleType =
-    STLinear PlotRange Bool  -- ^ data : linear
-  | STBand { stBandPadding :: Double, stBandRange :: PlotRange }  -- ^ data : band
-  | STColours Colours  -- ^ colours : linear or band 
-  deriving (Eq, Show, Generic)
+
+
+
+
+-- data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
+
+-- data ScaleType =
+--     STLinear PlotRange Bool  -- ^ data : linear
+--   | STBand { stBandPadding :: Double, stBandRange :: PlotRange, stBandParam :: Double }  -- ^ data : band
+--   | STColourScheme ColourScheme  -- ^ linear or band
+--   | STColourOrdinal [C.Colour Double] -- ^ ordinal 
+--   deriving (Eq, Show, Generic)
 
 data PlotRange = Width | Height deriving (Eq, Show, Generic)
 instance A.ToJSON PlotRange where
   toJSON = \case
     Width -> "width"
     Height -> "height"
-
-data Colours =
-    ColScheme ColourScheme
-  | ColValues [C.Colour Double]  -- ^ A list of colours for a discrete palette
-  deriving (Eq, Show, Generic)
 
 -- | Colour schemes for e.g. heatmaps
 data ColourScheme = CSPlasma deriving (Eq, Show, Generic)
@@ -270,9 +360,9 @@ data Domain = Domain {domainData :: String, domainField :: String} deriving (Eq,
 instance A.ToJSON Domain where
   toJSON (Domain dd df) = A.object ["data" .= dd, "field" .= df]
 
-encodeDomain dats dn df =
-  maybeThrow (DataNotFoundE dn) (lookupData dn dats) $ \ _ ->
-    pure $ Domain dn df
+-- encodeDomain dats dn df =
+--   maybeThrow (DataNotFoundE dn) (lookupData dn dats) $ \ _ ->
+--     pure $ Domain dn df
 
 
 
@@ -294,18 +384,18 @@ axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= o
 
 data AxisMetadata = AxisMD { axScale :: String, axTitle :: String, axOffset :: Int, axTixkMinStep :: Int, axGrid :: Bool} deriving (Eq, Show, Generic)
 
--- create axis metadata only if the referred 'Scale' exists
-mkAxisMD ::
-     Scales
-  -> String  -- ^ scale name
-  -> String  -- ^ axis title
-  -> Int     -- ^ axis offset
-  -> Int     -- ^ tick min step
-  -> Bool    -- ^ grid on/off
-  -> Maybe AxisMetadata
-mkAxisMD scs scname axt axoff axtms axgr = do
-  _ <- lookupScale scname scs
-  pure $ AxisMD scname axt axoff axtms axgr
+-- -- create axis metadata only if the referred 'Scale' exists
+-- mkAxisMD ::
+--      Scales
+--   -> String  -- ^ scale name
+--   -> String  -- ^ axis title
+--   -> Int     -- ^ axis offset
+--   -> Int     -- ^ tick min step
+--   -> Bool    -- ^ grid on/off
+--   -> Maybe AxisMetadata
+-- mkAxisMD scs scname axt axoff axtms axgr = do
+--   _ <- lookupScale scname scs
+--   pure $ AxisMD scname axt axoff axtms axgr
 
 
 
@@ -447,13 +537,13 @@ instance A.ToJSON MGeomEnc where
     MGEValueFloat x -> A.object ["value" .= x]
     MGEEncMD emd    -> A.toJSON emd
 
-constG = MGEValueFloat
+-- constG = MGEValueFloat
 
--- build 'EncodingMetadata' only if the referred 'Scale' exists
-mkEncMD :: Scales -> String -> String -> Maybe EncodingMetadata
-mkEncMD scs sname emf = do
-  _ <- lookupScale sname scs
-  pure $ EncMD sname emf
+-- -- build 'EncodingMetadata' only if the referred 'Scale' exists
+-- mkEncMD :: Scales -> String -> String -> Maybe EncodingMetadata
+-- mkEncMD scs sname emf = do
+--   _ <- lookupScale sname scs
+--   pure $ EncMD sname emf
 
 -- | Scale metadata to encode one mark feature
 --
