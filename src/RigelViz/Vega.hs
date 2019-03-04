@@ -128,9 +128,9 @@ data VSpec r = VSpec {
   , vsHeight :: Int  -- ^ plot height [px]
   , vsPadding :: Int  -- ^ padding [px]
   -- , vsScales :: Scales  -- ^ scales
-  , vsAxes :: [Axis]  -- ^ axes
+  -- , vsAxes :: [Axis]  -- ^ axes
   , vsData :: Data r -- ^ data
-  , vsMarks :: Marks -- ^ marks
+  -- , vsMarks :: Marks -- ^ marks
   } deriving  (Eq, Show, Generic)
 -- instance A.ToJSON r => A.ToJSON (VSpec r) where
 --   toJSON (VSpec tm lm w h p _ axs ds mks) =
@@ -245,23 +245,41 @@ lookupData dn (Data dnm) = M.lookup dn dnm
 
 
 
+-- * Axis
+
+data Axis =
+    XAxis XAxisType AxisMetadata
+  | YAxis YAxisType AxisMetadata
+  deriving (Eq, Show, Generic)
+instance A.ToJSON Axis where
+  toJSON = \case
+    XAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
+    YAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
+
+axisMDPairs :: A.KeyValue a => AxisMetadata -> [a]
+axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+
+data AxisMetadata = AxisMD { axScale :: String, axTitle :: String, axOffset :: Int, axTixkMinStep :: Int, axGrid :: Bool} deriving (Eq, Show, Generic)
+
+-- | V. axis types
+data XAxisType = HATop  | HABottom deriving (Eq, Show, Generic)
+instance A.ToJSON XAxisType where
+  toJSON = \case
+    HATop -> "top"
+    HABottom -> "bottom"
+data YAxisType = VALeft | VARight deriving (Eq, Show, Generic)
+instance A.ToJSON YAxisType where
+  toJSON = \case
+    VALeft -> "left"
+    VARight -> "right"
+
+
+
+
 
 -- * Scale
 
--- | Scales
--- 
--- https://vega.github.io/vega/docs/scales/
--- | A set of scales is a map from names to 'Scale' metadata
--- newtype Scales = Scales { unScales :: M.Map String Scale } deriving (Eq, Show, Generic)
 
--- namedScale :: String -> Scale -> Scales
--- namedScale sn s = Scales $ M.singleton sn s
-
--- instance Semigroup Scales where
---   (Scales scs1) <> (Scales scs2) = Scales $ scs1 <> scs2
-
--- lookupScale :: String -> Scales -> Maybe Scale
--- lookupScale scn (Scales sm) = M.lookup scn sm
 
 -- instance A.ToJSON Scales where
 --   toJSON scs = array $ M.foldlWithKey insf [] $ unScales scs where
@@ -289,59 +307,54 @@ lookupData dn (Data dnm) = M.lookup dn dnm
 --               ]
 
 
--- -- crate a 'Scale' only if the referred 'Data'set exists
--- mkScale ::
---      Data a
---   -> String   -- ^ dataset name 
---   -> String   -- ^ data field
---   -> ScaleType 
---   -> Maybe Scale
--- mkScale dat dname dfield stype = do
---   _ <- lookupData dname dat
---   let dom = Domain dname dfield
---   pure $ Scale stype dom
 
 
+-- | Data encoding channels 
+newtype EncChans v = EncChans { unSM :: M.Map String (Channel v, Axis) } deriving (Show)
 
-
-
-
-newtype ScaleMap v = ScaleMap { unSM :: M.Map String (Channel v) } deriving (Show)
-
-instance Semigroup (ScaleMap v) where
-  (ScaleMap sm1) <> (ScaleMap sm2) = ScaleMap $ sm1 <> sm2
+instance Semigroup (EncChans v) where
+  (EncChans sm1) <> (EncChans sm2) = EncChans $ sm1 <> sm2
 
 -- | Encoding channels for marks
+--
+-- mid-level representation: each 'Channel' will be interpreted in a (scale, mark channel) pair
 data Channel v =
-    CLinearValue ScaleP PlotRange Bool v  -- "y": {"scale": "scy", "value": 0}  -- linear
-  | CLinearField ScaleP PlotRange Bool String  -- "x": {"scale": "scx", "field": "a"}  -- linear
-  | CBand ScaleP Double PlotRange Double Double -- "width": {"scale": "scw", "band" : 1}   -- band
-  | CColourScheme ScaleP ColourScheme  -- linear or band
-  | COrdinalCol ScaleP [C.Colour Double] -- ordinal   
+    CLinearField  DomP PlotRange Bool String  -- "x": {"scale": "scx", "field": "a"}          -- linear  
+  | CLinearValue  DomP PlotRange Bool v  -- "y": {"scale": "scy", "value": 0}                 -- linear
+  | CBand         DomP PlotRange Double Double Double -- "width": {"scale": "scw", "band": 1} -- band
+  | CColourScheme DomP ColourScheme                                                 -- linear or band
+  | COrdinalCol   DomP [C.Colour Double]                                              -- ordinal   
   | CConst v -- "fillOpacity": {"value": 0.5}
   deriving (Show)
 
-data ScaleP = ScaleP {
-    spDomainData :: String   -- ^ dataset name 
-  , spDomainField :: String  -- ^ field the scale is built with
-  , spRangeField :: String   -- ^ field used by the encoding channel
+data DomP = DomP {
+    cpDomainData :: String   -- ^ domain.data (dataset name)
+  , cpDomainField :: String  -- ^ domain.field (field the scale is built with)
                                  } deriving (Show)
-  
 
 
+encodeChannel n = \case
+  CLinearField (DomP dd df) pr z rf ->
+    Scale n "linear" dd df $ M.fromList [("range", A.toJSON pr), ("zero", A.toJSON z)]
+  CLinearValue (DomP dd df) pr z val -> undefined
+
+-- | low-level encoding
+data Scale = Scale {
+    sName :: String  -- name
+  , sType :: String  -- type
+  , sDomData :: String  -- domain.data
+  , sDomField :: String -- domain.field  
+  , sExtraFields :: M.Map T.Text A.Value  -- <additional optional fields>
+  } deriving (Show, Generic)
 
 
+instance A.ToJSON Scale where
+  toJSON (Scale sn sty sdd sdf sef) = A.object $ [
+      "name" .= sn
+    , "type" .= sty
+    , "domain" .= A.object ["data" .= sdd, "field" .= sdf]
+                                               ] ++ M.toList sef
 
-
-
--- data Scale = Scale { scaleType :: ScaleType, scaleDomain :: Domain } deriving (Eq, Show, Generic)
-
--- data ScaleType =
---     STLinear PlotRange Bool  -- ^ data : linear
---   | STBand { stBandPadding :: Double, stBandRange :: PlotRange, stBandParam :: Double }  -- ^ data : band
---   | STColourScheme ColourScheme  -- ^ linear or band
---   | STColourOrdinal [C.Colour Double] -- ^ ordinal 
---   deriving (Eq, Show, Generic)
 
 data PlotRange = Width | Height deriving (Eq, Show, Generic)
 instance A.ToJSON PlotRange where
@@ -356,60 +369,11 @@ instance A.ToJSON ColourScheme where
     CSPlasma -> "plasma"
 
 
-data Domain = Domain {domainData :: String, domainField :: String} deriving (Eq, Show, Generic)
-instance A.ToJSON Domain where
-  toJSON (Domain dd df) = A.object ["data" .= dd, "field" .= df]
-
--- encodeDomain dats dn df =
---   maybeThrow (DataNotFoundE dn) (lookupData dn dats) $ \ _ ->
---     pure $ Domain dn df
 
 
 
 
 
--- * Axis
-
-data Axis =
-    XAxis XAxisType AxisMetadata
-  | YAxis YAxisType AxisMetadata
-  deriving (Eq, Show, Generic)
-instance A.ToJSON Axis where
-  toJSON = \case
-    XAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
-    YAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
-
-axisMDPairs :: A.KeyValue a => AxisMetadata -> [a]
-axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
-
-data AxisMetadata = AxisMD { axScale :: String, axTitle :: String, axOffset :: Int, axTixkMinStep :: Int, axGrid :: Bool} deriving (Eq, Show, Generic)
-
--- -- create axis metadata only if the referred 'Scale' exists
--- mkAxisMD ::
---      Scales
---   -> String  -- ^ scale name
---   -> String  -- ^ axis title
---   -> Int     -- ^ axis offset
---   -> Int     -- ^ tick min step
---   -> Bool    -- ^ grid on/off
---   -> Maybe AxisMetadata
--- mkAxisMD scs scname axt axoff axtms axgr = do
---   _ <- lookupScale scname scs
---   pure $ AxisMD scname axt axoff axtms axgr
-
-
-
--- | V. axis types
-data XAxisType = HATop  | HABottom deriving (Eq, Show, Generic)
-instance A.ToJSON XAxisType where
-  toJSON = \case
-    HATop -> "top"
-    HABottom -> "bottom"
-data YAxisType = VALeft | VARight deriving (Eq, Show, Generic)
-instance A.ToJSON YAxisType where
-  toJSON = \case
-    VALeft -> "left"
-    VARight -> "right"
 
 
 
@@ -417,143 +381,107 @@ instance A.ToJSON YAxisType where
 
 -- * Mark
 
-newtype Marks = Marks [Mark] deriving (Eq, Show, Generic)
-instance A.ToJSON Marks where
-  toJSON (Marks mks) = A.object ["marks" .= map A.toJSON mks]
-
--- | Mark geometry encoding
-data Mark =
-    MRectC String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, xc, yc, w, h
-  | MRectV String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, x, y, width, y2
-  | MSymbol String MarkSymbolShape MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, shape, x, y, size
-  | MGroup [Mark] -- ^ "group"
-  deriving (Eq, Show, Generic)
-
-instance A.ToJSON Mark where
-  toJSON = \case 
-    MGroup mges  -> A.object [
-      "type" .= string "group",
-      "marks" .= map A.toJSON mges
-                             ]
-    MRectC dfrom xc yc w h -> A.object [
-        "type" .= string "rect"
-      , "from" .= A.object ["data" .= dfrom]
-      , "encode" .= A.object [
-          "enter" .=
-            A.object [
-                "xc" .= xc
-              , "yc" .= yc
-              , "width" .= w
-              , "height" .= h 
-              ]
-          ]
-      ]
-    MRectV dfrom x y w y2 -> A.object [
-        "type" .= string "rect"
-      , "from" .= A.object ["data" .= dfrom]
-      , "encode" .= A.object [
-          "enter" .=
-            A.object [
-                "x" .= x
-              , "y" .= y
-              , "width" .= w
-              , "y2" .= y2
-              ]
-          ]
-      ]
-    MSymbol dfrom msh x y sz -> A.object [
-        "type" .= string "symbol"
-      , "from" .= A.object ["data" .= dfrom]
-      , "encode" .= A.object [
-          "enter" .=
-            A.object [
-                "shape" .= msh
-              , "x" .= x
-              , "y" .= y
-              , "size" .= sz
-              ]
-          ]
-      ]
+data Mark v =
+    MRect String (EncChans v)   -- "from", "encode.enter"
+  | MSymbol String (EncChans v)
+  | MGroup [Mark v]
+  deriving (Show, Generic)
 
 
 
 
 
+-- newtype Marks = Marks [Mark] deriving (Eq, Show, Generic)
+-- instance A.ToJSON Marks where
+--   toJSON (Marks mks) = A.object ["marks" .= map A.toJSON mks]
 
--- -- ** Mark color metadata
-
--- newtype MarkCol = MarkCol [MarkColType] deriving (Eq, Show, Generic)
--- instance Semigroup MarkCol where
---   (MarkCol mc1) <> (MarkCol mc2) = MarkCol $ mc1 <> mc2
-
--- fill, stroke :: MarkColEnc -> MarkColAlphaEnc -> MarkCol
--- fill ce ae = MarkCol [MCTFill ce ae]
--- stroke ce ae = MarkCol [MCTStroke ce ae]
-
--- data MarkColType =
---     MCTFill MarkColEnc MarkColAlphaEnc  -- ^ fill
---   | MCTStroke MarkColEnc MarkColAlphaEnc  -- ^ stroke
+-- -- | Mark geometry encoding
+-- data Mark =
+--     MRectC String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, xc, yc, w, h
+--   | MRectV String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, x, y, width, y2
+--   | MSymbol String MarkSymbolShape MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, shape, x, y, size
+--   | MGroup [Mark] -- ^ "group"
 --   deriving (Eq, Show, Generic)
 
--- -- encodeMarkColTYpe = \case
--- --   MCTFill mce mcae -> case mce of
--- --     MCECol c   -> ["fill" .= string (T.pack $ C.sRGB24show c)]
--- --       -- MCEEnc emd -> []
+-- instance A.ToJSON Mark where
+--   toJSON = \case 
+--     MGroup mges  -> A.object [
+--       "type" .= string "group",
+--       "marks" .= map A.toJSON mges
+--                              ]
+--     MRectC dfrom xc yc w h -> A.object [
+--         "type" .= string "rect"
+--       , "from" .= A.object ["data" .= dfrom]
+--       , "encode" .= A.object [
+--           "enter" .=
+--             A.object [
+--                 "xc" .= xc
+--               , "yc" .= yc
+--               , "width" .= w
+--               , "height" .= h 
+--               ]
+--           ]
+--       ]
+--     MRectV dfrom x y w y2 -> A.object [
+--         "type" .= string "rect"
+--       , "from" .= A.object ["data" .= dfrom]
+--       , "encode" .= A.object [
+--           "enter" .=
+--             A.object [
+--                 "x" .= x
+--               , "y" .= y
+--               , "width" .= w
+--               , "y2" .= y2
+--               ]
+--           ]
+--       ]
+--     MSymbol dfrom msh x y sz -> A.object [
+--         "type" .= string "symbol"
+--       , "from" .= A.object ["data" .= dfrom]
+--       , "encode" .= A.object [
+--           "enter" .=
+--             A.object [
+--                 "shape" .= msh
+--               , "x" .= x
+--               , "y" .= y
+--               , "size" .= sz
+--               ]
+--           ]
+--       ]
 
--- data MarkColAlphaEnc =
---     MCAEAlpha Double         -- ^ constant alpha
---   | MCAEEnc EncodingMetadata -- ^ alpha encoding channel
+
+
+
+
+
+
+-- -- | mark geometry encoding : either a value or an encoding channel (scale + field)
+-- data MGeomEnc =
+--     MGEValueFloat Double
+--   | MGEEncMD EncodingMetadata
 --   deriving (Eq, Show, Generic)
+-- instance A.ToJSON MGeomEnc where
+--   toJSON = \case
+--     MGEValueFloat x -> A.object ["value" .= x]
+--     MGEEncMD emd    -> A.toJSON emd
 
--- constAlpha :: Double -> MarkColAlphaEnc
--- constAlpha = MCAEAlpha
+-- -- constG = MGEValueFloat
 
--- encAlpha :: String -> String -> MarkColAlphaEnc
--- encAlpha es ef = MCAEEnc $ EncMD es ef
+-- -- -- build 'EncodingMetadata' only if the referred 'Scale' exists
+-- -- mkEncMD :: Scales -> String -> String -> Maybe EncodingMetadata
+-- -- mkEncMD scs sname emf = do
+-- --   _ <- lookupScale sname scs
+-- --   pure $ EncMD sname emf
 
--- data MarkColEnc =
---     MCECol (C.Colour Double)  -- ^ constant colour
---   | MCEEnc EncodingMetadata   -- ^ colour encoding channel
---   deriving (Eq, Show, Generic)
-
--- constCol :: C.Colour Double -> MarkColEnc
--- constCol = MCECol
-
--- encCol :: String -> String -> MarkColEnc
--- encCol es ef = MCEEnc $ EncMD es ef
-
-
-
-
-
-
--- | mark geometry encoding : either a value or an encoding channel (scale + field)
-data MGeomEnc =
-    MGEValueFloat Double
-  | MGEEncMD EncodingMetadata
-  deriving (Eq, Show, Generic)
-instance A.ToJSON MGeomEnc where
-  toJSON = \case
-    MGEValueFloat x -> A.object ["value" .= x]
-    MGEEncMD emd    -> A.toJSON emd
-
--- constG = MGEValueFloat
-
--- -- build 'EncodingMetadata' only if the referred 'Scale' exists
--- mkEncMD :: Scales -> String -> String -> Maybe EncodingMetadata
--- mkEncMD scs sname emf = do
---   _ <- lookupScale sname scs
---   pure $ EncMD sname emf
-
--- | Scale metadata to encode one mark feature
---
--- NB : the 'emdScale' field must be the name to an existing 'Scale'
-data EncodingMetadata = EncMD {
-    emdScale :: String      -- ^ which 'scale' is the data encoded with
-  , emdField :: String -- ^ what data field is used
-  } deriving (Eq, Show, Ord, Generic)
-instance A.ToJSON EncodingMetadata where
-  toJSON (EncMD sc scf) = A.object ["scale" .= sc, "field" .= scf]
+-- -- | Scale metadata to encode one mark feature
+-- --
+-- -- NB : the 'emdScale' field must be the name to an existing 'Scale'
+-- data EncodingMetadata = EncMD {
+--     emdScale :: String      -- ^ which 'scale' is the data encoded with
+--   , emdField :: String -- ^ what data field is used
+--   } deriving (Eq, Show, Ord, Generic)
+-- instance A.ToJSON EncodingMetadata where
+--   toJSON (EncMD sc scf) = A.object ["scale" .= sc, "field" .= scf]
 
 -- | Shapes for the "symbol" Mark
 data MarkSymbolShape =
