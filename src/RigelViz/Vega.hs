@@ -1,5 +1,6 @@
 {-# language DeriveGeneric, DeriveDataTypeable, LambdaCase, OverloadedStrings, CPP #-}
 -- {-# language GADTs #-}
+{-# language DeriveFunctor #-}
 {-# language GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
 module RigelViz.Vega where
 
@@ -42,42 +43,47 @@ A plot can be seen as a mapping between data features and features of visual mar
 
 
 
+
 -- data Internal r = Internal {
 --     internalData :: M.Map String (Data r)
 --   , internalScales :: M.Map String Scale
 --   }
 
--- newtype App r a = App { unApp :: State (Internal r) a} deriving (Functor, Applicative, Monad)
--- -- instance Monad m => MonadState (Internal r) (App r m)
 
--- runApp :: App r a -> Internal r -> (a, Internal r)
--- runApp app = runState (unApp app)
+data Supply r = Supply { getSupply :: [Int], items :: M.Map String r } deriving (Show, Functor)
 
-
--- append :: Ord i => a -> ([i], M.Map i a) -> ([i], M.Map i a)
--- append x (n:ns, mm) = (ns, mm') where mm' = M.insert n x mm
-
-
-data Supply i n a = Supply { getSupply :: [i], items :: M.Map n a }
-
-intSupply :: Supply Int n a
+intSupply :: Supply r
 intSupply = Supply [0 ..] M.empty
 
-append :: Ord n => (i -> n) -> a -> Supply i n a -> Supply i n a
-append f x (Supply (n:ns) mm) = Supply ns mm' where
+-- appendWith :: Ord n => (i -> n) -> a -> Supply i n a -> Supply i n a
+appendWith :: (Int -> String) -> r -> Supply r -> Supply r
+appendWith f x (Supply (n:ns) mm) = Supply ns mm' where
   mm' = M.insert (f n) x mm
 
-appendWithPrefix :: Show i => String -> a -> Supply i String a -> Supply i String a
-appendWithPrefix p = append (\n -> mconcat [p, show n])  
+appendWithPrefix :: String -> r -> Supply r -> Supply r
+appendWithPrefix p = appendWith (\n -> mconcat [p, show n])  
 
--- newtype App i r a = App { unApp :: State (Supply i r) a }
---    deriving (Functor, Applicative, Monad, MonadState (Supply i r))
 
--- withSupply :: r -> App r ()
--- withSupply x = modify (append x)
+
+newtype App r a = App { unApp :: State (Supply r) a }
+   deriving (Functor, Applicative, Monad, MonadState (Supply r))
+
+withSupply :: (Int -> String) -> r -> App r ()
+withSupply f x = modify (appendWith f x)
+
+withSupply' :: String -> r -> App r ()
+withSupply' s x = modify (appendWithPrefix s x)
   
+runApp :: App r a -> a
+runApp a = evalState (unApp a) intSupply
 
--- runApp a = runState (unApp a) -- intSupply
+
+
+testApp = M.toList <$> do
+  let t = withSupply' "tick"
+  _ <- t 42
+  t 312
+  gets items
 
 
 
@@ -310,7 +316,7 @@ instance A.ToJSON YAxisType where
 
 
 -- | Data encoding channels 
-newtype EncChans v = EncChans { unSM :: M.Map String (Channel v, Axis) } deriving (Show)
+newtype EncChans v = EncChans { unSM :: M.Map String (Channel v) } deriving (Show)
 
 instance Semigroup (EncChans v) where
   (EncChans sm1) <> (EncChans sm2) = EncChans $ sm1 <> sm2
@@ -333,23 +339,50 @@ data DomP = DomP {
                                  } deriving (Show)
 
 
+-- 1. [channel] -> [(scale, mark encoding)]
+-- 2. [scale]   -> [Maybe axis]
+
+
+
+-- encode a Channel into a Scale
 encodeChannel n = \case
   CLinearField (DomP dd df) pr z rf ->
-    Scale n "linear" dd df $ M.fromList [("range", A.toJSON pr), ("zero", A.toJSON z)]
-  CLinearValue (DomP dd df) pr z val -> undefined
+    ScaleEnc n "linear" dd df $ M.fromList [("range", A.toJSON pr), ("zero", A.toJSON z)]
+  CLinearValue (DomP dd df) pr z val ->
+    ScaleEnc n "linear" dd df $ M.fromList []
 
--- | low-level encoding
-data Scale = Scale {
-    sName :: String  -- name
-  , sType :: String  -- type
-  , sDomData :: String  -- domain.data
-  , sDomField :: String -- domain.field  
-  , sExtraFields :: M.Map T.Text A.Value  -- <additional optional fields>
+-- | Primitive mark type
+data MarkPrimitive = MPRect | MPSymbol deriving (Show, Generic)
+instance A.ToJSON MarkPrimitive where
+  toJSON = \case
+    MPRect -> "rect"
+
+data MarkEnc =
+    MarkPrim MarkPrimitive String (M.Map T.Text A.Value)
+  | MarkRec [MarkEnc]
+  deriving (Show, Generic)
+
+instance A.ToJSON MarkEnc where
+  toJSON (MarkPrim mp mdf mfs) =
+    let mty = case mp of
+          MPRect -> "rect"
+          MPSymbol -> "symbol"
+    in A.object $ [
+      "type" .= string mty
+      ] ++ M.toList mfs
+
+-- | low-level Scale encoding
+data ScaleEnc = ScaleEnc {
+    seName :: String  -- name
+  , seType :: String  -- type
+  , seDomData :: String  -- domain.data
+  , seDomField :: String -- domain.field  
+  , seExtraFields :: M.Map T.Text A.Value  -- <additional optional fields>
   } deriving (Show, Generic)
 
-
-instance A.ToJSON Scale where
-  toJSON (Scale sn sty sdd sdf sef) = A.object $ [
+-- | 'ScaleEnc' has a 1:1 JSON encoding
+instance A.ToJSON ScaleEnc where
+  toJSON (ScaleEnc sn sty sdd sdf sef) = A.object $ [
       "name" .= sn
     , "type" .= sty
     , "domain" .= A.object ["data" .= sdd, "field" .= sdf]
