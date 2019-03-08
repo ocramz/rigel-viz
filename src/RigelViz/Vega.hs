@@ -184,10 +184,11 @@ data Title = Title { titleText :: String, titleAnchor :: TAnchor, titleFontSz ::
 instance A.ToJSON Title where
   toJSON (Title ts ta fs tf off) = A.object ["text" .= ts, "anchor" .= ta, "fontSize" .= fs, "frame" .= tf, "offset" .= off]
 
-data TFrame = TFGroup deriving (Eq, Show, Generic)
+data TFrame = TFGroup | TFBounds deriving (Eq, Show, Generic)
 instance A.ToJSON TFrame where
   toJSON = \case
     TFGroup -> "group"
+    TFBounds -> "bounds"
 
 -- title anchor
 data TAnchor = TStart | TMiddle | TEnd deriving (Eq, Show, Generic)
@@ -357,19 +358,27 @@ instance A.ToJSON MarkPrimitive where
   toJSON = \case
     MPRect -> "rect"
 
+-- | Mark encoding
 data MarkEnc =
-    MarkPrim MarkPrimitive String (M.Map T.Text A.Value)
-  | MarkRec [MarkEnc]
+    MarkEncPrim MarkPrimitive String (M.Map T.Text A.Value)
+  | MarkEncGroup [MarkEnc]
   deriving (Show, Generic)
 
 instance A.ToJSON MarkEnc where
-  toJSON (MarkPrim mp mdf mfs) =
-    let mty = case mp of
-          MPRect -> "rect"
-          MPSymbol -> "symbol"
-    in A.object $ [
-      "type" .= string mty
-      ] ++ M.toList mfs
+  toJSON = \case
+    MarkEncGroup mks ->
+      A.object [
+        "type" .= string "group"
+      , "marks" .= A.toJSON mks
+      ]
+    MarkEncPrim mp mdf mfs -> 
+      let mty = case mp of
+            MPRect -> "rect"
+            MPSymbol -> "symbol"
+      in A.object $ [
+          "type" .= string mty
+        , "from" .= A.object ["data" .= mdf]
+        ] ++ M.toList mfs
 
 -- | low-level Scale encoding
 data ScaleEnc = ScaleEnc {
