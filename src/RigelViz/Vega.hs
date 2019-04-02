@@ -322,6 +322,11 @@ newtype EncChans v = EncChans { unSM :: M.Map String (Channel v) } deriving (Sho
 instance Semigroup (EncChans v) where
   (EncChans sm1) <> (EncChans sm2) = EncChans $ sm1 <> sm2
 
+
+
+-- MRectC String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, xc, yc, w, h
+-- MRectV String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, x, y, width, y2
+
 -- | Encoding channels for marks
 --
 -- mid-level representation: each 'Channel' will be interpreted in a (scale, mark channel) pair
@@ -357,6 +362,7 @@ data MarkPrimitive = MPRect | MPSymbol deriving (Show, Generic)
 instance A.ToJSON MarkPrimitive where
   toJSON = \case
     MPRect -> "rect"
+    MPSymbol -> "symbol"
 
 -- | Mark encoding
 data MarkEnc =
@@ -371,14 +377,14 @@ instance A.ToJSON MarkEnc where
         "type" .= string "group"
       , "marks" .= A.toJSON mks
       ]
-    MarkEncPrim mp mdf mfs -> 
-      let mty = case mp of
-            MPRect -> "rect"
-            MPSymbol -> "symbol"
-      in A.object $ [
-          "type" .= string mty
+    MarkEncPrim mtype mdf mfs -> 
+      A.object [
+          "type" .= mtype
         , "from" .= A.object ["data" .= mdf]
-        ] ++ M.toList mfs
+        , "encode" .= A.object [
+            "enter" .= A.toJSON mfs
+            ]
+        ] 
 
 -- | low-level Scale encoding
 data ScaleEnc = ScaleEnc {
@@ -497,33 +503,7 @@ data Mark v =
 
 
 
--- -- | mark geometry encoding : either a value or an encoding channel (scale + field)
--- data MGeomEnc =
---     MGEValueFloat Double
---   | MGEEncMD EncodingMetadata
---   deriving (Eq, Show, Generic)
--- instance A.ToJSON MGeomEnc where
---   toJSON = \case
---     MGEValueFloat x -> A.object ["value" .= x]
---     MGEEncMD emd    -> A.toJSON emd
 
--- -- constG = MGEValueFloat
-
--- -- -- build 'EncodingMetadata' only if the referred 'Scale' exists
--- -- mkEncMD :: Scales -> String -> String -> Maybe EncodingMetadata
--- -- mkEncMD scs sname emf = do
--- --   _ <- lookupScale sname scs
--- --   pure $ EncMD sname emf
-
--- -- | Scale metadata to encode one mark feature
--- --
--- -- NB : the 'emdScale' field must be the name to an existing 'Scale'
--- data EncodingMetadata = EncMD {
---     emdScale :: String      -- ^ which 'scale' is the data encoded with
---   , emdField :: String -- ^ what data field is used
---   } deriving (Eq, Show, Ord, Generic)
--- instance A.ToJSON EncodingMetadata where
---   toJSON (EncMD sc scf) = A.object ["scale" .= sc, "field" .= scf]
 
 -- | Shapes for the "symbol" Mark
 data MarkSymbolShape =
