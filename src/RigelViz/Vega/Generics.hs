@@ -3,6 +3,18 @@
 {-# language DefaultSignatures #-}
 {-# language FlexibleInstances #-}
 {-# language GADTs, FlexibleContexts #-}
+----------------------------------------------------------------
+-- |
+-- Module      :  RigelViz.Vega.Generics
+-- Description :  Generic encoding of algebraic types
+-- Copyright   :  (c) Marco Zocca (2019)
+-- License     :  MIT
+-- Maintainer  :  ocramz fripost org
+-- Stability   :  experimental
+-- Portability :  GHC
+--
+-- Generic encoding of algebraic datatypes, using @generics-sop@
+-----------------------------------------------------------------
 module RigelViz.Vega.Generics (
   HasDouble, gPickDouble
   , HasText, gPickText

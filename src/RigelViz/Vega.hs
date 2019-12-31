@@ -2,6 +2,17 @@
 -- {-# language GADTs #-}
 {-# language DeriveFunctor #-}
 {-# language GeneralizedNewtypeDeriving, MultiParamTypeClasses #-}
+----------------------------------------------------------------
+-- |
+-- Module      :  RigelViz.Vega
+-- Description :  Bindings for 'vega'
+-- Copyright   :  (c) Marco Zocca (2019)
+-- License     :  MIT
+-- Maintainer  :  ocramz fripost org
+-- Stability   :  experimental
+-- Portability :  GHC
+--
+-----------------------------------------------------------------
 module RigelViz.Vega where
 
 -- import qualified Data.Set as S
