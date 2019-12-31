@@ -53,7 +53,7 @@ import qualified GHC.Generics as G
 
 -- generics-sop
 -- import Generics.SOP (All(..), All2, Generic(..), SOP(..), NS(..), NP(..), I(..), HasDatatypeInfo(..))
-import Generics.SOP (All(..), All2, AllN, HAp, Prod, Generic(..), SOP(..), NS(..), NP(..), hcmap, hcfoldMap, hcollapse, mapIK, I(..), K(..), productTypeTo, HasDatatypeInfo(..), DatatypeInfo(..), ConstructorInfo(..), constructorInfo, FieldInfo(..), fieldName, FieldName, SListI(..))
+import Generics.SOP (All(..), All2, AllN, HAp, Prod, Generic(..), SOP(..), NS(..), NP(..), hcmap, hcfoldMap, hcollapse, mapIK, I(..), K(..), HasDatatypeInfo(..), DatatypeInfo(..), ConstructorInfo(..), constructorInfo, FieldInfo(..), fieldName, FieldName, SListI(..))
 -- text
 import qualified Data.Text as T (Text, pack)
 
