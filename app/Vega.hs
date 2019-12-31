@@ -21,6 +21,7 @@ import Lucid.VegaLite (mkVegaHtml)
 
 
 import RigelViz.Vega
+import RigelViz.Vega.Types (Data(..), mkDataJson)
 import RigelViz.Util (V3(..), dats, pprint)
 
 main = putStrLn "hello!"
