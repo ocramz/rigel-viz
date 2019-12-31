@@ -323,7 +323,6 @@ instance Semigroup (EncChans v) where
   (EncChans sm1) <> (EncChans sm2) = EncChans $ sm1 <> sm2
 
 
-
 -- MRectC String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, xc, yc, w, h
 -- MRectV String MGeomEnc MGeomEnc MGeomEnc MGeomEnc -- ^ from.data, x, y, width, y2
 
@@ -339,10 +338,11 @@ data Channel v =
   | CConst v -- "fillOpacity": {"value": 0.5}
   deriving (Show)
 
+-- | 'scale' domain properties
 data DomP = DomP {
     cpDomainData :: String   -- ^ domain.data (dataset name)
   , cpDomainField :: String  -- ^ domain.field (field the scale is built with)
-                                 } deriving (Show)
+  } deriving (Show)
 
 
 -- 1. [channel] -> [(scale, mark encoding)]

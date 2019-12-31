@@ -23,15 +23,17 @@ library
   hs-source-dirs:      src
   exposed-modules:     RigelViz
                        RigelViz.Vega
+                       RigelViz.Vega.Generics
   build-depends:       base >= 4.7 && < 5
                      , bytestring >= 0.10.8.2
                      , colour >= 2.3.4
                      , containers >= 0.6.0.1                  
                      , aeson >= 1.4.2.0
-                     , exceptions
-                     , mtl
+                     , exceptions >= 0.10.0
+                     , generics-sop >= 0.4.0.1
+                     , mtl >= 2.2.2
                      , text >= 1.2.3.1
-                     , vector
+                     , vector >= 0.12.0.2
 
 
 -- Visualization tests

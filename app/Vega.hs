@@ -4,17 +4,21 @@ module Main where
 import GHC.Generics (Generic(..))
 import Data.Typeable (Typeable(..), typeRep)
 
+-- aeson
 import qualified Data.Aeson as A
+-- aeson-pretty
 import qualified Data.Aeson.Encode.Pretty as A (encodePretty)
-
-import Lucid (Html(..), renderToFile)
-import Lucid.VegaLite (mkVegaHtml)
-
+-- bytestring
+import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
+-- colour
 import qualified Data.Colour as C
 import qualified Data.Colour.Names as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
+-- lucid
+import Lucid (Html(..), renderToFile)
+-- lucid-extras
+import Lucid.VegaLite (mkVegaHtml)
 
-import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
 import RigelViz.Vega
 import RigelViz.Util (V3(..), dats, pprint)
