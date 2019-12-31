@@ -14,36 +14,65 @@
 -- Portability :  GHC
 --
 -- Generic encoding of algebraic datatypes, using @generics-sop@
+--
+-- The 'gPickDouble','gPickText' functions can be used to index
+-- into both anonymous product types and record types.
+--
+-- NB : currently it is not possible to index into nested or recursive types (i.e. only "flat" records are supported)
+--
+-- The examples will use the following type declarations :
+--
+-- @
+-- data C = C Int Float deriving (Show, G.Generic)
+-- instance Generic C
+-- 
+-- -- NB : the generic encoding of D is identical to that of C
+-- data D = D { d1 :: Int, d2 :: Float } deriving (Show, G.Generic)
+-- instance Generic D
+-- @
 -----------------------------------------------------------------
 module RigelViz.Vega.Generics (
-  HasDouble, gPickDouble
-  , HasText, gPickText
+  -- * Index into records 
+  gPickDouble
+  , gPickText
+  -- ** Helper typeclasses
+  , HasDouble, HasText
   ) where
 
+-- import Data.Char (toLower, ord)
 import Data.Char (toLower)
-import Data.Proxy (Proxy(..))
+-- import Data.Proxy (Proxy(..))
 import qualified GHC.Generics as G
 
 -- generics-sop
-import Generics.SOP (All(..), All2(..), AllN(..), Prod(..), HAp(..), Generic(..), SOP(..), NS(..), NP(..), I(..), K(..), hcmap, hcollapse, mapIK, HasDatatypeInfo(..))
+-- import Generics.SOP (All(..), All2, Generic(..), SOP(..), NS(..), NP(..), I(..), HasDatatypeInfo(..))
+import Generics.SOP (All(..), All2, Generic(..), SOP(..), NS(..), NP(..), I(..))
 -- text
-import qualified Data.Text as T (Text, pack, unpack)
+import qualified Data.Text as T (Text, pack)
 
 
 
 
+-- | Can a record field be cast as a Double ?
 class HasDouble t where
   hasDouble :: t -> Double
 instance HasDouble Int where hasDouble = fromIntegral
 instance HasDouble Float where hasDouble = fromRational . toRational
 instance HasDouble Double where hasDouble = id
+-- instance HasDouble Char where hasDouble = fromIntegral . ord -- ewwww
+instance HasDouble a => HasDouble (Maybe a) where
+  hasDouble = \case
+    Nothing -> 0
+    Just x -> hasDouble x
 
 -- class HasInt t where
 --   hasInt :: t -> Int
 --   default hasInt :: RealFrac t => t -> Int
 --   hasInt = floor
 -- instance HasInt Int where hasInt = id
+-- instance HasInt Char where hasInt = ord
 
+-- | Can a record field be interpreted as a Text string ? This one is easy, so we provide a default instance via Show
 class HasText t where
   hasText :: t -> T.Text
   default hasText :: Show t => t -> T.Text
@@ -56,8 +85,13 @@ instance HasText String where
   hasText = T.pack
 
 
-
-
+-- | Index into a product type and render the field as a Text string
+--
+-- >>> gPickText 0 $ C 42 6.6
+-- Just "42"
+-- 
+-- >>> gPickText 1 $ D 42 6.6
+-- Just "6.6"
 gPickText :: (Generic a, All2 HasText (Code a)) =>
               Int -> a -> Maybe T.Text
 gPickText i = gPickTextS i . from 
@@ -82,10 +116,12 @@ gPickTextP i0 = go 0
 
 
 
-
--- λ> gPickDouble 0 $ C 42 6.6
+-- | Index into a product type and cast the field as a Double
+-- 
+-- >>> gPickDouble 0 $ C 42 6.6
 -- Just 42.0
--- λ> gPickDouble 1 $ C 42 6.6
+-- 
+-- >>> gPickDouble 1 $ D 42 6.6
 -- Just 6.6
 gPickDouble :: (Generic a, All2 HasDouble (Code a)) =>
               Int -> a -> Maybe Double
@@ -110,6 +146,7 @@ gPickDoubleP i0 = go 0
         else go (succ i) xs
 
 
+-- test data types
 
 data A = A1 Bool | A2 A Int 
   deriving (Show, G.Generic)
@@ -122,5 +159,9 @@ instance Generic B
 
 -- λ> from $ C 42 6.6
 -- SOP (Z (I 42 :* I 6.6 :* Nil))
-data C = C Int Float deriving (Show, G.Generic)
+data C = C Int Double deriving (Show, G.Generic)
 instance Generic C
+
+-- NB : the generic encoding of D is identical to that of C
+data D = D { d1 :: Int, d2 :: Double } deriving (Show, G.Generic)
+instance Generic D
