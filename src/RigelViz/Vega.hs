@@ -41,7 +41,7 @@ import RigelViz.Vega.Types
 
 import Prelude hiding (lookup)
 
-#if !MIN_VERSION_base(4,8,0)
+#if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
 #endif
 
@@ -151,8 +151,7 @@ schema vn = mconcat ["https://vega.github.io/schema/vega/v", show vn,".json"]
 --   -> VSpec r
 -- vegaSpec = VSpec
 
-maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
-maybeSection st = maybe [] (\t -> [st .= t])
+
 
 
 

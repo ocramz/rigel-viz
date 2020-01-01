@@ -15,7 +15,7 @@ extra-source-files:  README.md
 extra-doc-files:     doc/fig/scatter1.png
                      doc/fig/heatmap1.png                     
 cabal-version:       1.18
-tested-with:         GHC == 8.6.3
+tested-with:         GHC == 8.6.3, GHC == 8.8.1
 
 library
   default-language:    Haskell2010
@@ -26,15 +26,15 @@ library
                        RigelViz.Vega.Generics
                        RigelViz.Vega.Types
   build-depends:       base >= 4.7 && < 5
-                     , bytestring >= 0.10.8.2
-                     , colour >= 2.3.4
-                     , containers >= 0.6.0.1                  
-                     , aeson >= 1.4.2.0
-                     , exceptions >= 0.10.0
-                     , generics-sop >= 0.3.2
-                     , mtl >= 2.2.2
-                     , text >= 1.2.3.1
-                     , vector >= 0.12.0.2
+                     , bytestring 
+                     , colour
+                     , containers
+                     , aeson 
+                     , exceptions 
+                     , generics-sop 
+                     , mtl 
+                     , text 
+                     , vector 
 
 
 -- Visualization tests
@@ -50,8 +50,8 @@ executable vega
                      , aeson-pretty >= 0.8.7
                      , bytestring
                      , colour
-                     , lucid >= 2.9.11
-                     , lucid-extras >= 0.2.2
+                     , lucid 
+                     , lucid-extras 
    
 -- executable viz
 --   default-language:    Haskell2010

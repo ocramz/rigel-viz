@@ -110,7 +110,7 @@ import qualified Data.Text as T
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 
-#if !MIN_VERSION_base(4,8,0)
+#if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
 #endif
 

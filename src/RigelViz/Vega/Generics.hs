@@ -14,10 +14,7 @@
 -- Stability   :  experimental
 -- Portability :  GHC
 --
--- Generic encoding of algebraic datatypes, using @generics-sop@
---
--- The 'gPickDouble','gPickText' functions can be used to index
--- into both anonymous product types and record types.
+-- Generic encoding of algebraic datatypes and their metadata (e.g. record field names), using @generics-sop@
 --
 -- NB : currently it is not possible to index into nested or recursive types (i.e. only "flat" records are supported)
 --
@@ -67,16 +64,38 @@ Does a type have a field with a given name?
 -- False
 -- λ>  hasField "d1" (D 42 5)
 -- True
-class HasField t where
-  hasField :: String -> t -> Bool
-  default hasField :: HasDatatypeInfo t => String -> t -> Bool
-  hasField f0 _ = matchConstr f0 (constructorInfo (datatypeInfo (Proxy :: Proxy t)))
+-- class HasField t where
+--   hasField :: String -> t -> Bool
+--   default hasField :: HasDatatypeInfo t => String -> t -> Bool
+--   hasField f0 _ = matchConstr f0 (constructorInfo (datatypeInfo (Proxy :: Proxy t)))
+
+
+
+typeFields :: forall t . HasDatatypeInfo t => t -> [[FieldName]]
+typeFields _ = constructorFields (constructorInfo (datatypeInfo (Proxy :: Proxy t)))
+
+constructorFields :: NP ConstructorInfo xs -> [[FieldName]]
+constructorFields cstr = case cstr of
+  Record _ finfo :* finfs -> fieldNames finfo : constructorFields finfs
+  _ -> []
+
+-- | Returns field names as strings
+fieldNames :: NP FieldInfo a -> [FieldName]
+fieldNames pr = case pr of
+  Nil -> []
+  FieldInfo f :* fs -> f : fieldNames fs
+
+-- 
+
+hasField :: forall t . HasDatatypeInfo t => String -> t -> Bool
+hasField f0 _ = matchConstr f0 (constructorInfo (datatypeInfo (Proxy :: Proxy t)))
 
 matchConstr :: String -> NP ConstructorInfo xs -> Bool
 matchConstr f0 cstr = case cstr of
   Record _ finfo :* finfs -> hasFieldName f0 finfo || matchConstr f0 finfs
   _ -> False
-
+  
+-- | Does a given record contain the given field?
 hasFieldName :: String -> NP FieldInfo xs -> Bool
 hasFieldName f0 pr = case pr of
   Nil -> False
@@ -84,9 +103,33 @@ hasFieldName f0 pr = case pr of
 
 
 
+-- test data types
 
+data A = A1 Bool | A2 A Int 
+  deriving (Show, G.Generic)
+instance Generic A
+instance HasDatatypeInfo A
 
+-- λ> from $ B 42 True "mooo"
+-- SOP (Z (I 42 :* I True :* I "mooo" :* Nil))
+data B = B Int Bool String deriving (Show, G.Generic)
+instance Generic B
+instance HasDatatypeInfo B
 
+-- λ> from $ C 42 6.6
+-- SOP (Z (I 42 :* I 6.6 :* Nil))
+data C = C Int Double deriving (Show, G.Generic)
+instance Generic C
+instance HasDatatypeInfo C
+
+-- NB : the generic encoding of D is identical to that of C
+data D = D { d1 :: Int, d2 :: Double } deriving (Show, G.Generic)
+instance Generic D
+instance HasDatatypeInfo D
+
+data E = E1 {e11 :: Int} | E2 {e21 :: Double} deriving (Show, G.Generic)
+instance Generic E
+instance HasDatatypeInfo E
 
 
 
@@ -194,27 +237,3 @@ hasFieldName f0 pr = case pr of
 --         else go (succ i) xs
 
 
--- test data types
-
-data A = A1 Bool | A2 A Int 
-  deriving (Show, G.Generic)
-instance Generic A
-instance HasDatatypeInfo A
-
--- λ> from $ B 42 True "mooo"
--- SOP (Z (I 42 :* I True :* I "mooo" :* Nil))
-data B = B Int Bool String deriving (Show, G.Generic)
-instance Generic B
-instance HasDatatypeInfo B
-
--- λ> from $ C 42 6.6
--- SOP (Z (I 42 :* I 6.6 :* Nil))
-data C = C Int Double deriving (Show, G.Generic)
-instance Generic C
-instance HasDatatypeInfo C
-
--- NB : the generic encoding of D is identical to that of C
-data D = D { d1 :: Int, d2 :: Double } deriving (Show, G.Generic)
-instance Generic D
-instance HasDatatypeInfo D
-instance HasField D
