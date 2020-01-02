@@ -21,8 +21,8 @@ env:
 
 jobs:
   allow_failures:
-    - env: "--resolver lts-12.26" # 8.4.4
-    - env: "--resolver lts-11.22" # 8.2.2
+    - env: ARGS="--resolver lts-12.26" # 8.4.4
+    - env: ARGS="--resolver lts-11.22" # 8.2.2
 
 before_install:
 # Download and unpack the stack executable
