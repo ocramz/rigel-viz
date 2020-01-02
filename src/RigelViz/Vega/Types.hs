@@ -15,6 +15,7 @@
 -----------------------------------------------------------------
 module RigelViz.Vega.Types where
 
+import Data.Typeable (Typeable)
 import GHC.Generics (Generic(..))
 import Control.Exception (Exception(..))
 -- aeson
@@ -60,7 +61,7 @@ data VSpec r = VSpec {
 --     opts = maybeSection "title" tm ++
 --            maybeSection "legend" lm
 
-maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]    
+maybeSection :: (A.KeyValue a, A.ToJSON v) => T.Text -> Maybe v -> [a]
 maybeSection st = maybe [] (\t -> [st .= t])
 
 -- * Title
@@ -130,6 +131,54 @@ lookupData dn (Data dnm) = M.lookup dn dnm
 
 
 
+-- * Axis
+
+data Axis =
+    XAxis XAxisType AxisMetadata
+  | YAxis YAxisType AxisMetadata
+  deriving (Eq, Show, Generic)
+instance A.ToJSON Axis where
+  toJSON = \case
+    XAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
+    YAxis o amd -> A.object $ ("orient" .= o) : axisMDPairs amd
+
+axisMDPairs :: A.KeyValue a => AxisMetadata -> [a]
+axisMDPairs (AxisMD s t off tms gr) = ["scale" .= s, "title" .= t, "offset" .= off, "tickMinStep" .= tms, "grid" .= gr]
+
+data AxisMetadata = AxisMD { axScale :: String, axTitle :: String, axOffset :: Int, axTixkMinStep :: Int, axGrid :: Bool} deriving (Eq, Show, Generic)
+
+-- | V. axis types
+data XAxisType = HATop | HABottom deriving (Eq, Show, Generic)
+instance A.ToJSON XAxisType where
+  toJSON = \case
+    HATop -> "top"
+    HABottom -> "bottom"
+data YAxisType = VALeft | VARight deriving (Eq, Show, Generic)
+instance A.ToJSON YAxisType where
+  toJSON = \case
+    VALeft -> "left"
+    VARight -> "right"
+
+
+
+
+-- * Exceptions
+
+data VegaE =
+    DataNotFoundE String
+  | ScaleNotFoundE String
+  deriving (Eq, Typeable)
+instance Show VegaE where
+  show = \case
+    DataNotFoundE dn -> unwords ["dataset <", dn, "> not found"]
+    ScaleNotFoundE dn -> unwords ["scale <", dn, "> not found"]    
+instance Exception VegaE
+
+
+
+
+
+
 
 -- * 'exceptions' utils
 
@@ -141,7 +190,7 @@ maybeThrow e mx f = maybe (throwM e) f mx
 
 wrap :: [(T.Text, A.Value)] -> [A.Value]
 wrap xs = [ A.object xs ]  
-        
+
 string :: T.Text -> A.Value
 string = A.String
 

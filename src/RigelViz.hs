@@ -5,7 +5,7 @@ Module      : RigelViz
 Description : Mid-level bindings to @vega-lite@
 Copyright   : (c) Marco Zocca, 2019
 License     : BSD3
-Maintainer  : ocramz fripost org
+Maintainer  : ocramz
 Stability   : experimental
 Portability : POSIX
 

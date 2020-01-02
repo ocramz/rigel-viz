@@ -1,7 +1,6 @@
-resolver: nightly-2019-12-30
-# resolver: lts-11.22 #
-# resolver: lts-14.19 # 8.6.5
-# resolver: lts-12.25
+# resolver: nightly-2019-12-30 # 8.8.1
+# resolver: lts-11.22 # 8.2.2
+resolver: lts-14.19 # 8.6.5
 
 packages:
 - .
@@ -9,8 +8,17 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-extra-deps:
-- lucid-extras-0.2.2@sha256:f862b0afc33ff41e405577739b4fe1d7b694b99308dd4904c2e55104d955688e
+# extra-deps:
+# - aeson-schema-0.4.1.3@sha256:56fe85ec28a451aca49ce4af235e33fc82b7c81eb3d2e3cd0152345c0625229d
+# - QuickCheck-2.11.3@sha256:5e8e84718b2a47ba2986732adf9fd8888f2bef965854ed3a0beb14e8da938389
+# - aeson-1.3.1.1@sha256:1ab29743b4c4c9be7df57200ed2c8779048adda4cead075944b7b471e93ed4c3
+# - containers-0.5.11.0@sha256:28ad7337057442f75bc689315ab4ec7bdf5e6b2c39668f306672cecd82c02798
+# - template-haskell-2.13.0.0@sha256:555df4a4f47d358ce35f4c0f4371aa4347081fd00288e751838141d6fc7de627
+# - th-lift-0.7.11@sha256:2d1126ec2e54d399edb49ffab1fc9da2da058e43cf5fb3e175c3b574c1bd1772
+# - th-abstraction-0.2.11.0@sha256:5c286870277705796887d0cbfa48a6aa5e0f206152592a54fbc550d8ce0c5ab5
+
+# extra-deps:
+# - lucid-extras-0.2.2@sha256:f862b0afc33ff41e405577739b4fe1d7b694b99308dd4904c2e55104d955688e
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
