@@ -69,10 +69,12 @@ data Glyph x =
 
 data SymbolShape = Circle | Cross
 
+-- | A ScalarFeature could be a coordinate or a size annotation, either constant or tied to a data scale
 data ScalarFeature x =
     GFConst x -- ^ constant
   | GFFromScale Scale -- ^ derived from a 'scale'
 
+-- | A ColFeature is a colour annotation, either constant or tied to a data scale
 data ColFeature =
     CFConst Col -- ^ constant
   | CFFromScale ColourScale -- ^ derived from a 'scale'
@@ -86,7 +88,7 @@ data Scale = Scale {
     scaleName :: Maybe String -- initially Nothing
   , scaleType :: ScaleType
                    }
-             
+
 data ScaleType =
   Linear
   | Ordinal -- ^ discrete, ordered values
