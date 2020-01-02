@@ -32,7 +32,8 @@ library
                      , aeson >= 1.2.4
                      , exceptions >= 0.8.3
                      , generics-sop >= 0.3.2
-                     -- , microlens
+                     , microlens
+                     , microlens-th
                      , mtl >= 2.2.2
                      , text >= 1.2.3
                      , vector >= 0.12
