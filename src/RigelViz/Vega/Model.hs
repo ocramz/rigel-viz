@@ -2,7 +2,10 @@
 {-# language TemplateHaskell #-}
 {-# language DeriveGeneric #-}
 {-# language DeriveFunctor #-}
+{-# language GeneralizedNewtypeDeriving #-}
 module RigelViz.Vega.Model where
+
+
 
 import qualified GHC.Generics as G (Generic(..))
 
@@ -14,10 +17,13 @@ import qualified Data.Colour.SRGB as C (sRGB24show)
 -- containers
 import qualified Data.Map as M (Map, fromList, insert, empty)
 -- microlens
-import Lens.Micro (Lens, Lens', Traversal, Traversal', (&))
-import Lens.Micro ((.~), (?~)) -- setters
-import Lens.Micro ((%~)) -- modifiers
-import Lens.Micro ((^.)) -- getters
+
+-- microlens-ghc   -- traversals for 'containers' et al.
+import Lens.Micro.GHC (Lens, Lens', Traversal, Traversal', (&))
+import Lens.Micro.GHC ((.~), (?~)) -- setters
+import Lens.Micro.GHC ((%~)) -- modifiers
+import Lens.Micro.GHC ((^.)) -- getters
+import Lens.Micro.GHC (traverseOf, traversed, _Just) -- traversals
 -- microlens-mtl
 import Lens.Micro.Mtl ((.=), (?=)) -- setters
 import Lens.Micro.Mtl ((%=), zoom) -- modifiers
@@ -25,7 +31,8 @@ import Lens.Micro.Mtl (use) -- getters
 -- microlens-th
 import Lens.Micro.TH
 -- mtl
-import Control.Monad.State.Class (MonadState(..))
+import Control.Monad.State.Class (MonadState(..), gets)
+import Control.Monad.State (State(..), runState, StateT(..), runStateT)
 
 import RigelViz.Vega.Types
 import RigelViz.Vega.Generics (sopFieldNames)
@@ -132,13 +139,15 @@ instance A.ToJSON a => A.ToJSON (Scale a) where
 scale :: ScaleType -> Domain a -> Range a -> Scale a
 scale = Scale Nothing 
 
--- | assign a name to a scale
-nameScale :: String -> Scale a -> Scale a
-nameScale n = scaleName ?~ n
+-- -- | assign a name to a scale
+-- nameScale :: String -> Scale a -> Scale a
+-- nameScale n = scaleName ?~ n
 
 nameDomainDataRef :: Traversal' (Scale a) (Maybe String)
 nameDomainDataRef = scaleDomain . domainDataRef 
 
+nameDomainDataField :: Traversal' (Scale a) String
+nameDomainDataField = scaleDomain . domainDataField
 
 
 
@@ -161,6 +170,7 @@ data ColourScaleType =
 
 
 
+-- ** Features : can be either constant or referring to a scale
 
 -- | A ScalarFeature could be a coordinate or a size annotation, either constant or tied to a data scale
 data ScalarFeature x =
@@ -169,6 +179,14 @@ data ScalarFeature x =
   deriving (Eq, Show, G.Generic, Functor)
 makeLenses ''ScalarFeature
 instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
+
+-- setSfConst k = sfConst .~ k
+
+nameScaleDomainDataRef :: Traversal' (ScalarFeature x) (Maybe String)
+nameScaleDomainDataRef = sfScale . nameDomainDataRef
+
+nameScaleDomainDataField :: Traversal' (ScalarFeature x) String
+nameScaleDomainDataField = sfScale . nameDomainDataField
 
 -- | A ColFeature is a colour annotation, either constant or tied to a data scale
 data ColFeature =
@@ -180,38 +198,40 @@ data ColFeature =
 
 
 
--- -- * Mark
+-- * Geometry features
 
-
-
-
-
-data GeomFeatureTy = X | Y | Xc | Yc | Width | Height deriving (Eq, Show, Ord)
+data GeomFeatureTy = X | Y | X2 | Y2 | Width | Height deriving (Eq, Show, Ord)
 newtype GeomFeatures x = GeomFeatures {
   _gfMap :: M.Map GeomFeatureTy (ScalarFeature x) } deriving (Eq, Show, Functor)
 makeLenses ''GeomFeatures
 
-geomFeatures :: GeomFeatures x
+geomFeatures :: GeomFeatures a
 geomFeatures = GeomFeatures M.empty
 
-insertGf :: GeomFeatureTy -> ScalarFeature x -> GeomFeatures x -> GeomFeatures x
 insertGf k v = gfMap %~ M.insert k v
 
-x, y :: ScalarFeature x -> GeomFeatures x -> GeomFeatures x
-x = insertGf X
-y = insertGf Y
 
-xScale, yScale :: Scale x -> GeomFeatures x -> GeomFeatures x
-xScale s = x (GFFromScale s)
-yScale s = y (GFFromScale s)
+-- data GeomFeatures x = GeomFeatures {
+--   _gfX :: Maybe (ScalarFeature x)
+--   , _gfY :: Maybe (ScalarFeature x)
+--   , _gfX2 :: Maybe (ScalarFeature x)
+--   , _gfY2 :: Maybe (ScalarFeature x)
+--   , _gfWidth :: Maybe (ScalarFeature x)
+--   , _gfHeight :: Maybe (ScalarFeature x)
+--   } deriving (Eq, Show, G.Generic, Functor)
+-- makeLenses ''GeomFeatures
 
--- scale' :: GeomFeatureTy -> Scale x -> GeomFeatures x -> GeomFeatures x
--- scale' w scl = insertGf w (GFFromScale scl)
+-- geomFeatures :: GeomFeatures a
+-- geomFeatures = GeomFeatures Nothing Nothing Nothing Nothing Nothing Nothing
 
--- moo :: GeomFeatures Double
--- moo = geom &
---         x (GFConst 1.0) &
---         y (GFConst 2)
+-- x :: Traversal' (GeomFeatures x) (ScalarFeature x)
+-- x = gfX . _Just
+
+-- xScale :: Traversal' (GeomFeatures x) (Scale x)
+-- xScale = x . sfScale
+
+
+-- * Mark
 
 data SymbolShape = Circle | Cross deriving (Eq, Show, Ord, G.Generic)
 data MarkType = Rect | RectC | Symbol { _markSymbolShape :: SymbolShape } deriving (Eq, Show, Ord)
@@ -230,14 +250,25 @@ data Mark x = Mark {
   , _col :: ColFeatures -- ^ Colour features
   } deriving (Eq, Show, G.Generic, Functor)
 makeLenses ''Mark
+
 circle :: Mark x
 circle = Mark (Symbol Circle) geomFeatures colFeatures
+
+
+{- INTUITION :
+
+the initial state is specified by the user, e.g. as the following plot declaration
 
 scatter :: Scale x -> Scale x -> Mark x
 scatter xs ys =
   circle &
     geom %~ xScale xs &
-    geom %~ yScale ys 
+    geom %~ yScale ys
+
+the compiler then populates all scale, axis, dataset names accordingly, while performing checks on the input value
+
+-}
+
 
 
 

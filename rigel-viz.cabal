@@ -33,6 +33,7 @@ library
                      , exceptions >= 0.8.3
                      , generics-sop >= 0.3.2
                      , microlens
+                     , microlens-ghc
                      , microlens-mtl
                      , microlens-th
                      , mtl >= 2.2.2
