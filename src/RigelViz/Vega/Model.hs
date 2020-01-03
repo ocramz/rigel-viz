@@ -14,13 +14,18 @@ import qualified Data.Colour.SRGB as C (sRGB24show)
 -- containers
 import qualified Data.Map as M (Map, fromList, insert, empty)
 -- microlens
-import Lens.Micro (Lens', (&))
+import Lens.Micro (Lens, Lens', Traversal, Traversal', (&))
 import Lens.Micro ((.~), (?~)) -- setters
 import Lens.Micro ((%~)) -- modifiers
 import Lens.Micro ((^.)) -- getters
-
+-- microlens-mtl
+import Lens.Micro.Mtl ((.=), (?=)) -- setters
+import Lens.Micro.Mtl ((%=), zoom) -- modifiers
+import Lens.Micro.Mtl (use) -- getters
 -- microlens-th
 import Lens.Micro.TH
+-- mtl
+import Control.Monad.State.Class (MonadState(..))
 
 import RigelViz.Vega.Types
 import RigelViz.Vega.Generics (sopFieldNames)
@@ -89,9 +94,11 @@ u <||> v = undefined
   
 data Domain a =
     DomainValues [a]
-  | DomainDataRef {
-      domainDataField :: String -- ^ field name (dataset name comes from the context)
+  | DomainData {
+        _domainDataRef :: Maybe String
+      , _domainDataField :: String 
       } deriving (Eq, Show, G.Generic, Functor)
+makeLenses ''Domain
 instance A.ToJSON a => A.ToJSON (Domain a) where
 
 -- ** Range
@@ -125,6 +132,14 @@ instance A.ToJSON a => A.ToJSON (Scale a) where
 scale :: ScaleType -> Domain a -> Range a -> Scale a
 scale = Scale Nothing 
 
+-- | assign a name to a scale
+nameScale :: String -> Scale a -> Scale a
+nameScale n = scaleName ?~ n
+
+nameDomainDataRef :: Traversal' (Scale a) (Maybe String)
+nameDomainDataRef = scaleDomain . domainDataRef 
+
+
 
 
 
@@ -149,9 +164,10 @@ data ColourScaleType =
 
 -- | A ScalarFeature could be a coordinate or a size annotation, either constant or tied to a data scale
 data ScalarFeature x =
-    GFConst x -- ^ constant
-  | GFFromScale (Scale x) -- ^ derived from a 'scale'
+    GFConst { _sfConst :: x } -- ^ constant
+  | GFFromScale { _sfScale :: Scale x } -- ^ derived from a 'scale'
   deriving (Eq, Show, G.Generic, Functor)
+makeLenses ''ScalarFeature
 instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
 
 -- | A ColFeature is a colour annotation, either constant or tied to a data scale
@@ -189,7 +205,8 @@ xScale, yScale :: Scale x -> GeomFeatures x -> GeomFeatures x
 xScale s = x (GFFromScale s)
 yScale s = y (GFFromScale s)
 
-scale' w scl = insertGf w (GFFromScale scl)
+-- scale' :: GeomFeatureTy -> Scale x -> GeomFeatures x -> GeomFeatures x
+-- scale' w scl = insertGf w (GFFromScale scl)
 
 -- moo :: GeomFeatures Double
 -- moo = geom &
@@ -208,9 +225,9 @@ colFeatures = ColFeatures M.empty
 
 -- | Each mark is associated with a few (>= 0) geometry and colour features
 data Mark x = Mark {
-    _markType :: MarkType
-  , _markGeom :: GeomFeatures x -- ^ Geometry features
-  , _markCol :: ColFeatures -- ^ Colour features
+    _mark :: MarkType
+  , _geom :: GeomFeatures x -- ^ Geometry features
+  , _col :: ColFeatures -- ^ Colour features
   } deriving (Eq, Show, G.Generic, Functor)
 makeLenses ''Mark
 circle :: Mark x
@@ -219,8 +236,8 @@ circle = Mark (Symbol Circle) geomFeatures colFeatures
 scatter :: Scale x -> Scale x -> Mark x
 scatter xs ys =
   circle &
-    markGeom %~ xScale xs &
-    markGeom %~ yScale ys
+    geom %~ xScale xs &
+    geom %~ yScale ys 
 
 
 
