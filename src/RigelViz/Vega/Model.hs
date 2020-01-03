@@ -1,6 +1,7 @@
 {-# language LambdaCase #-}
 {-# language TemplateHaskell #-}
 {-# language DeriveGeneric #-}
+{-# language DeriveFunctor #-}
 module RigelViz.Vega.Model where
 
 import qualified GHC.Generics as G (Generic(..))
@@ -10,10 +11,14 @@ import qualified Data.Aeson as A (ToJSON(..))
 -- colour
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
+-- containers
+import qualified Data.Map as M (Map, fromList, insert, empty)
 -- microlens
 import Lens.Micro (Lens', (&))
 import Lens.Micro ((.~), (?~)) -- setters
+import Lens.Micro ((%~)) -- modifiers
 import Lens.Micro ((^.)) -- getters
+
 -- microlens-th
 import Lens.Micro.TH
 
@@ -59,19 +64,10 @@ u <||> v = undefined
 
 
 
--- | A ScalarFeature could be a coordinate or a size annotation, either constant or tied to a data scale
-data ScalarFeature x =
-    GFConst x -- ^ constant
-  | GFFromScale (Scale x) -- ^ derived from a 'scale'
-  deriving (Eq, Show, G.Generic)
-instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
 
--- | A ColFeature is a colour annotation, either constant or tied to a data scale
-data ColFeature =
-    CFConst Col -- ^ constant
-  | CFFromScale ColourScale -- ^ derived from a 'scale'
-  deriving (Eq, Show, G.Generic)
--- instance A.ToJSON ColFeature where  -- FIXME
+
+
+
 
 
 -- * Scale
@@ -95,7 +91,7 @@ data Domain a =
     DomainValues [a]
   | DomainDataRef {
       domainDataField :: String -- ^ field name (dataset name comes from the context)
-      } deriving (Eq, Show, G.Generic)
+      } deriving (Eq, Show, G.Generic, Functor)
 instance A.ToJSON a => A.ToJSON (Domain a) where
 
 -- ** Range
@@ -104,7 +100,7 @@ data Range a =
   RangeWidth
   | RangeHeight
   | RangeBounds a a
-  deriving (Eq, Show, G.Generic)
+  deriving (Eq, Show, G.Generic, Functor)
 instance A.ToJSON a => A.ToJSON (Range a)
 
 data ColourRange = Plasma | Category20 | BlueOrange deriving (Show, G.Generic)
@@ -122,8 +118,8 @@ data Scale a = Scale {
   , _scaleType :: ScaleType
   , _scaleDomain :: Domain a
   , _scaleRange :: Range a 
-                   } deriving (Eq, Show, G.Generic)
-makeLenses Scale
+                   } deriving (Eq, Show, G.Generic, Functor)
+makeLenses ''Scale
 instance A.ToJSON a => A.ToJSON (Scale a) where
 
 scale :: ScaleType -> Domain a -> Range a -> Scale a
@@ -148,44 +144,134 @@ data ColourScaleType =
   | ColOrdinal [Col]
   deriving (Eq, Show, G.Generic)
 
+
+
+
+-- | A ScalarFeature could be a coordinate or a size annotation, either constant or tied to a data scale
+data ScalarFeature x =
+    GFConst x -- ^ constant
+  | GFFromScale (Scale x) -- ^ derived from a 'scale'
+  deriving (Eq, Show, G.Generic, Functor)
+instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
+
+-- | A ColFeature is a colour annotation, either constant or tied to a data scale
+data ColFeature =
+    CFConst Col -- ^ constant
+  | CFFromScale ColourScale -- ^ derived from a 'scale'
+  deriving (Eq, Show, G.Generic)
+-- instance A.ToJSON ColFeature where  -- FIXME
+
+
+
+
 -- -- * Mark
 
 
-data SymbolShape = Circle | Cross deriving (Eq, Show, G.Generic)
 
-data MarkType x =
-  Rect {
-    _markRectY2 :: Maybe (ScalarFeature x)
-  , _markRectWidth :: Maybe (ScalarFeature x)
-       }
-  | RectC {
-    _markRectCWidth :: Maybe (ScalarFeature x)
-  , _markRectCHeight :: Maybe (ScalarFeature x)
-          }
-  | Symbol {
-    _markSymbolShape :: SymbolShape
-  , _markSymbolSize :: Maybe (ScalarFeature x)
-           } deriving (Eq, Show, G.Generic)
-makeLenses ''MarkType
 
--- scatter = mk & markRectY2 . markType ?~ GFConst 5
---   where
---     mk = Symbol Circle Nothing
 
+data GeomFeatureTy = X | Y | Xc | Yc | Width | Height deriving (Eq, Show, Ord)
+newtype GeomFeatures x = GeomFeatures {
+  _gfMap :: M.Map GeomFeatureTy (ScalarFeature x) } deriving (Eq, Show, Functor)
+makeLenses ''GeomFeatures
+
+geomFeatures :: GeomFeatures x
+geomFeatures = GeomFeatures M.empty
+
+insertGf :: GeomFeatureTy -> ScalarFeature x -> GeomFeatures x -> GeomFeatures x
+insertGf k v = gfMap %~ M.insert k v
+
+x, y :: ScalarFeature x -> GeomFeatures x -> GeomFeatures x
+x = insertGf X
+y = insertGf Y
+
+xScale, yScale :: Scale x -> GeomFeatures x -> GeomFeatures x
+xScale s = x (GFFromScale s)
+yScale s = y (GFFromScale s)
+
+scale' w scl = insertGf w (GFFromScale scl)
+
+-- moo :: GeomFeatures Double
+-- moo = geom &
+--         x (GFConst 1.0) &
+--         y (GFConst 2)
+
+data SymbolShape = Circle | Cross deriving (Eq, Show, Ord, G.Generic)
+data MarkType = Rect | RectC | Symbol { _markSymbolShape :: SymbolShape } deriving (Eq, Show, Ord)
+data ColFeatureTy = MarkFillCol | StrokeCol deriving (Eq, Show, Ord)
+
+-- color features of a mark
+newtype ColFeatures = ColFeatures { _cfMap :: M.Map ColFeatureTy ColFeature } deriving (Eq, Show)
+makeLenses ''ColFeatures
+colFeatures :: ColFeatures
+colFeatures = ColFeatures M.empty
+
+-- | Each mark is associated with a few (>= 0) geometry and colour features
 data Mark x = Mark {
-    _markType :: MarkType x
-  , _x :: Maybe (ScalarFeature x) -- ^ the meaning of field X depends on mark type
-  , _y :: Maybe (ScalarFeature x) -- ^ the meaning of field Y depends on mark type
-  , _fill :: Maybe ColFeature
-  , _fillOpacity :: Maybe (ScalarFeature x)
-                   } deriving (Eq, Show, G.Generic)
+    _markType :: MarkType
+  , _markGeom :: GeomFeatures x -- ^ Geometry features
+  , _markCol :: ColFeatures -- ^ Colour features
+  } deriving (Eq, Show, G.Generic, Functor)
 makeLenses ''Mark
+circle :: Mark x
+circle = Mark (Symbol Circle) geomFeatures colFeatures
+
+scatter :: Scale x -> Scale x -> Mark x
+scatter xs ys =
+  circle &
+    markGeom %~ xScale xs &
+    markGeom %~ yScale ys
 
 
--- scatter = mk & x ?~ 
---   where
---     mty = Symbol Circle Nothing
---     mk = Mark mty Nothing Nothing Nothing Nothing
+
+
+
+
+-- newtype Marks x = Marks {
+--     _mfGeomMap :: [(MarkType, MarkFeatures x)]
+--                                    }
+-- makeLenses ''Marks
+
+
+-- insertMf k k2 =
+--   mfGeomMap %~ M.insert k mks
+--     where
+--       mks = (markFeaturesGeom %~ x)
+  
+
+-- data MarkType x =
+--   Rect {
+--     _markRectY2 :: Maybe (ScalarFeature x)
+--   , _markRectWidth :: Maybe (ScalarFeature x)
+--        }
+--   | RectC {
+--     _markRectCWidth :: Maybe (ScalarFeature x)
+--   , _markRectCHeight :: Maybe (ScalarFeature x)
+--           }
+--   | Symbol {
+--     _markSymbolShape :: SymbolShape
+--   , _markSymbolSize :: Maybe (ScalarFeature x)
+--            } deriving (Eq, Show, G.Generic)
+-- makeLenses ''MarkType
+
+-- -- scatter = mk & markRectY2 . markType ?~ GFConst 5
+-- --   where
+-- --     mk = Symbol Circle Nothing
+
+-- data Mark x = Mark {
+--     _markType :: MarkType x
+--   , _x :: Maybe (ScalarFeature x) -- ^ the meaning of field X depends on mark type
+--   , _y :: Maybe (ScalarFeature x) -- ^ the meaning of field Y depends on mark type
+--   , _fill :: Maybe ColFeature
+--   , _fillOpacity :: Maybe (ScalarFeature x)
+--                    } deriving (Eq, Show, G.Generic)
+-- makeLenses ''Mark
+
+
+-- -- scatter = mk & x ?~ 
+-- --   where
+-- --     mty = Symbol Circle Nothing
+-- --     mk = Mark mty Nothing Nothing Nothing Nothing
 
 
 
