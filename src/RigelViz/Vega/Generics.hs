@@ -23,17 +23,14 @@
 -- @
 -- data A = A Int Double deriving (Show, 'G.Generic')
 -- instance 'Generic' A
--- instance 'HasDatatypeInfo' A
 --
 -- -- NB : the generic encoding of B is identical to that of A, the only difference is that fields are named
 -- data B = B { b1 :: Int, b2 :: Double } deriving (Show, G.Generic)
 -- instance Generic B
--- instance HasDatatypeInfo B
 --
 -- -- General case : a sum type with named fields
 -- data C = C1 {c11 :: Int, c12 :: Double} | C2 {c21 :: Double} deriving (Show, G.Generic)
 -- instance Generic C
--- instance HasDatatypeInfo C
 -- @
 -----------------------------------------------------------------
 module RigelViz.Vega.Generics (sopFieldNames) where
@@ -49,11 +46,14 @@ import qualified Data.Map as M (Map, fromList)
 -- import qualified Data.IntMap as IM (IntMap, fromList)
 -- generics-sop
 -- import Generics.SOP (All(..), All2, Generic(..), SOP(..), NS(..), NP(..), I(..), HasDatatypeInfo(..))
-import Generics.SOP (Generic(..), NP(..), HasDatatypeInfo(..), ConstructorInfo(..), constructorInfo, FieldInfo(..), DatatypeName, FieldName)
+import Generics.SOP (Generic(..), NP(..), ConstructorInfo(..), constructorInfo, FieldInfo(..), DatatypeName, FieldName)
+import Generics.SOP.GGP (GDatatypeInfo, gdatatypeInfo)
 -- text
 -- import qualified Data.Text as T (Text, pack)
 
--- | All record field names for each variant of a sum type
+-- | All record field names for each variant of a sum type.
+--
+-- NB : it is sufficient for the type of the input value to have a 'G.Generic' instance (which can be automatically derived by GHC), and the 'GDatatypeInfo' instance will be produced from that.
 --
 -- >>> sopFieldNames (A 42 0.2)
 -- fromList []
@@ -63,8 +63,8 @@ import Generics.SOP (Generic(..), NP(..), HasDatatypeInfo(..), ConstructorInfo(.
 --
 -- >>> sopFieldNames (C1 42 0.2)
 -- fromList [("C1",["c11","c12"]),("C2",["c21"])]
-sopFieldNames :: forall t . HasDatatypeInfo t => t -> M.Map DatatypeName [FieldName]
-sopFieldNames _ = constructorFields (constructorInfo (datatypeInfo (Proxy :: Proxy t)))
+sopFieldNames :: forall t . (G.Generic t, GDatatypeInfo t) => t -> M.Map DatatypeName [FieldName]
+sopFieldNames _ = constructorFields (constructorInfo (gdatatypeInfo (Proxy :: Proxy t)))
 
 constructorFields :: NP ConstructorInfo xs -> M.Map DatatypeName [FieldName]
 constructorFields cstr = M.fromList (go cstr)
@@ -105,28 +105,28 @@ Does a type have a field with a given name?
 data A = A1 Bool | A2 A Int 
   deriving (Show, G.Generic)
 instance Generic A
-instance HasDatatypeInfo A
+-- instance HasDatatypeInfo A
 
 -- λ> from $ B 42 True "mooo"
 -- SOP (Z (I 42 :* I True :* I "mooo" :* Nil))
 data B = B Int Bool String deriving (Show, G.Generic)
 instance Generic B
-instance HasDatatypeInfo B
+-- instance HasDatatypeInfo B
 
 -- λ> from $ C 42 6.6
 -- SOP (Z (I 42 :* I 6.6 :* Nil))
 data C = C Int Double deriving (Show, G.Generic)
 instance Generic C
-instance HasDatatypeInfo C
+-- instance HasDatatypeInfo C
 
 -- NB : the generic encoding of D is identical to that of C
 data D = D { d1 :: Int, d2 :: Double } deriving (Show, G.Generic)
 instance Generic D
-instance HasDatatypeInfo D
+-- instance HasDatatypeInfo D
 
 data E = E1 {e11 :: Int, e12 :: Double} | E2 {e21 :: Double} deriving (Show, G.Generic)
 instance Generic E
-instance HasDatatypeInfo E
+-- instance HasDatatypeInfo E
 
 
 

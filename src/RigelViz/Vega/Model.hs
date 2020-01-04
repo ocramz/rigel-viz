@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# language LambdaCase #-}
 {-# language TemplateHaskell #-}
 {-# language DeriveGeneric #-}
@@ -7,6 +8,7 @@
 module RigelViz.Vega.Model where
 
 import Control.Applicative (liftA2)
+import Data.Foldable (Foldable(..))
 import qualified GHC.Generics as G (Generic(..))
 
 -- aeson
@@ -16,6 +18,8 @@ import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 -- containers
 import qualified Data.Map as M (Map, fromList, insert, empty, lookup)
+-- generics-sop
+import Generics.SOP.GGP (GDatatypeInfo)
 -- microlens
 import Lens.Micro (Lens, Lens', Traversal, Traversal', (&))
 import Lens.Micro (ASetter, (.~), (?~)) -- setters
@@ -98,7 +102,7 @@ u <||> v = undefined
 
 
 -- ** Domain
-  
+
 data Domain a =
      DomainValues [a]
    | DomainData {
@@ -253,6 +257,13 @@ mapAccumM f = runStateT . traverse (StateT . f)
 
 
 -- * Mark
+
+newtype Dataset d = Dataset [d]
+
+hasField :: (G.Generic d, GDatatypeInfo d) => String -> Dataset d -> Bool
+hasField df (Dataset d) = df `elem` fields
+  where
+    fields = fold $ sopFieldNames $ head d
 
 data SymbolShape = Circle | Cross deriving (Eq, Show, Ord, G.Generic)
 data MarkType = Rect | RectC | Symbol { _markSymbolShape :: SymbolShape } deriving (Eq, Show, Ord)
