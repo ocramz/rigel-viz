@@ -2,11 +2,11 @@
 {-# language TemplateHaskell #-}
 {-# language DeriveGeneric #-}
 {-# language DeriveFunctor #-}
-{-# language GeneralizedNewtypeDeriving #-}
+{-# language GeneralizedNewtypeDeriving, DeriveTraversable #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 module RigelViz.Vega.Model where
 
-
-
+import Control.Applicative (liftA2)
 import qualified GHC.Generics as G (Generic(..))
 
 -- aeson
@@ -15,24 +15,24 @@ import qualified Data.Aeson as A (ToJSON(..))
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (sRGB24show)
 -- containers
-import qualified Data.Map as M (Map, fromList, insert, empty)
+import qualified Data.Map as M (Map, fromList, insert, empty, lookup)
 -- microlens
-
+import Lens.Micro (Lens, Lens', Traversal, Traversal', (&))
+import Lens.Micro (ASetter, (.~), (?~)) -- setters
+import Lens.Micro ((%~)) -- modifiers
+import Lens.Micro (Getting, (^.)) -- getters
+import Lens.Micro (traverseOf, traversed, _Just) -- traversals
 -- microlens-ghc   -- traversals for 'containers' et al.
-import Lens.Micro.GHC (Lens, Lens', Traversal, Traversal', (&))
-import Lens.Micro.GHC ((.~), (?~)) -- setters
-import Lens.Micro.GHC ((%~)) -- modifiers
-import Lens.Micro.GHC ((^.)) -- getters
-import Lens.Micro.GHC (traverseOf, traversed, _Just) -- traversals
+import Lens.Micro.GHC (at, ix) -- the respective typeclasses are not exported
 -- microlens-mtl
-import Lens.Micro.Mtl ((.=), (?=)) -- setters
+import Lens.Micro.Mtl ((.=), (?=), assign) -- setters
 import Lens.Micro.Mtl ((%=), zoom) -- modifiers
 import Lens.Micro.Mtl (use) -- getters
 -- microlens-th
 import Lens.Micro.TH
 -- mtl
 import Control.Monad.State.Class (MonadState(..), gets)
-import Control.Monad.State (State(..), runState, StateT(..), runStateT)
+import Control.Monad.State (State, runState, StateT(..), runStateT)
 
 import RigelViz.Vega.Types
 import RigelViz.Vega.Generics (sopFieldNames)
@@ -136,8 +136,8 @@ data Scale a = Scale {
 makeLenses ''Scale
 instance A.ToJSON a => A.ToJSON (Scale a) where
 
-scale :: ScaleType -> Domain a -> Range a -> Scale a
-scale = Scale Nothing 
+-- scale :: ScaleType -> Domain a -> Range a -> Scale a
+-- scale = Scale Nothing 
 
 -- -- | assign a name to a scale
 -- nameScale :: String -> Scale a -> Scale a
@@ -180,6 +180,9 @@ data ScalarFeature x =
 makeLenses ''ScalarFeature
 instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
 
+-- scale :: Traversal' (ScalarFeature x) (Scale x)
+-- scale = sfScale
+
 -- setSfConst k = sfConst .~ k
 
 nameScaleDomainDataRef :: Traversal' (ScalarFeature x) (Maybe String)
@@ -203,32 +206,36 @@ data ColFeature =
 data GeomFeatureTy = X | Y | X2 | Y2 | Width | Height deriving (Eq, Show, Ord)
 newtype GeomFeatures x = GeomFeatures {
   _gfMap :: M.Map GeomFeatureTy (ScalarFeature x) } deriving (Eq, Show, Functor)
+-- newtype GeomFeatures a = GeomFeatures {
+--   _gfMap :: M.Map GeomFeatureTy a } deriving (Eq, Show, Functor, Foldable, Traversable)
 makeLenses ''GeomFeatures
 
 geomFeatures :: GeomFeatures a
 geomFeatures = GeomFeatures M.empty
 
-insertGf k v = gfMap %~ M.insert k v
+x :: Traversal' (GeomFeatures x) (ScalarFeature x)
+x = gfMap . at X . _Just
 
 
--- data GeomFeatures x = GeomFeatures {
---   _gfX :: Maybe (ScalarFeature x)
---   , _gfY :: Maybe (ScalarFeature x)
---   , _gfX2 :: Maybe (ScalarFeature x)
---   , _gfY2 :: Maybe (ScalarFeature x)
---   , _gfWidth :: Maybe (ScalarFeature x)
---   , _gfHeight :: Maybe (ScalarFeature x)
---   } deriving (Eq, Show, G.Generic, Functor)
--- makeLenses ''GeomFeatures
 
--- geomFeatures :: GeomFeatures a
--- geomFeatures = GeomFeatures Nothing Nothing Nothing Nothing Nothing Nothing
+-- lookupGf k (GeomFeatures gfm) = M.lookup k gfm
 
--- x :: Traversal' (GeomFeatures x) (ScalarFeature x)
--- x = gfX . _Just
+-- x = lookupGf X
 
--- xScale :: Traversal' (GeomFeatures x) (Scale x)
--- xScale = x . sfScale
+-- insertGf k v = gfMap %~ M.insert k v
+
+-- fromListGf kvs = gfMap .~ M.fromList kvs
+
+
+mapAccumM :: (Traversable t, Monad m) =>
+             (a -> s -> m (b, s))
+          -> t a
+          -> s
+          -> m (t b, s)
+mapAccumM f = runStateT . traverse (StateT . f)
+
+
+
 
 
 -- * Mark
@@ -240,6 +247,12 @@ data ColFeatureTy = MarkFillCol | StrokeCol deriving (Eq, Show, Ord)
 -- color features of a mark
 newtype ColFeatures = ColFeatures { _cfMap :: M.Map ColFeatureTy ColFeature } deriving (Eq, Show)
 makeLenses ''ColFeatures
+
+markFillCol, markStrokeCol :: Traversal' ColFeatures ColFeature
+markFillCol = cfMap . at MarkFillCol . _Just
+markStrokeCol = cfMap . at StrokeCol . _Just
+
+
 colFeatures :: ColFeatures
 colFeatures = ColFeatures M.empty
 
@@ -253,6 +266,8 @@ makeLenses ''Mark
 
 circle :: Mark x
 circle = Mark (Symbol Circle) geomFeatures colFeatures
+
+
 
 
 {- INTUITION :
@@ -275,89 +290,17 @@ the compiler then populates all scale, axis, dataset names accordingly, while pe
 
 
 
--- newtype Marks x = Marks {
---     _mfGeomMap :: [(MarkType, MarkFeatures x)]
---                                    }
--- makeLenses ''Marks
+newtype Marks x = Marks {
+    _marks :: [Mark x]
+    }
+makeLenses ''Marks
+
+noMarks :: Marks x
+noMarks = Marks []
 
 
--- insertMf k k2 =
---   mfGeomMap %~ M.insert k mks
---     where
---       mks = (markFeaturesGeom %~ x)
-  
-
--- data MarkType x =
---   Rect {
---     _markRectY2 :: Maybe (ScalarFeature x)
---   , _markRectWidth :: Maybe (ScalarFeature x)
---        }
---   | RectC {
---     _markRectCWidth :: Maybe (ScalarFeature x)
---   , _markRectCHeight :: Maybe (ScalarFeature x)
---           }
---   | Symbol {
---     _markSymbolShape :: SymbolShape
---   , _markSymbolSize :: Maybe (ScalarFeature x)
---            } deriving (Eq, Show, G.Generic)
--- makeLenses ''MarkType
-
--- -- scatter = mk & markRectY2 . markType ?~ GFConst 5
--- --   where
--- --     mk = Symbol Circle Nothing
-
--- data Mark x = Mark {
---     _markType :: MarkType x
---   , _x :: Maybe (ScalarFeature x) -- ^ the meaning of field X depends on mark type
---   , _y :: Maybe (ScalarFeature x) -- ^ the meaning of field Y depends on mark type
---   , _fill :: Maybe ColFeature
---   , _fillOpacity :: Maybe (ScalarFeature x)
---                    } deriving (Eq, Show, G.Generic)
--- makeLenses ''Mark
-
-
--- -- scatter = mk & x ?~ 
--- --   where
--- --     mty = Symbol Circle Nothing
--- --     mk = Mark mty Nothing Nothing Nothing Nothing
+-- addMark mk = marks %~ (mk :)
 
 
 
-
--- -- | Rectangle mark, given its mid-base edge coordinates
--- data Rect x = Rect {
---     _rectX :: Maybe (ScalarFeature x)
---   , _rectY :: Maybe (ScalarFeature x)
---   , _rectY2 :: Maybe (ScalarFeature x)
---   , _rectWidth :: Maybe (ScalarFeature x)
---   , _rectFill :: Maybe ColFeature
---   , _rectFillOpacity :: Maybe (ScalarFeature x)
---                  } deriving (G.Generic)
--- makeLenses ''Rect
-
--- -- | Rectangle mark, given its center coordinates
--- data RectC x = RectC {
---     _rectCX :: Maybe (ScalarFeature x)
---   , _rectCY :: Maybe (ScalarFeature x)
---   , _rectCWidth :: Maybe (ScalarFeature x)
---   , _rectCHeight :: Maybe (ScalarFeature x)  
---   , _rectCFill :: Maybe ColFeature
---   , _rectCFillOpacity :: Maybe (ScalarFeature x)
---                  }
--- makeLenses ''RectC
-
--- -- | Symbol mark
--- data Symbol x = Symbol {
---     _symbolX :: Maybe (ScalarFeature x)
---   , _symbolY :: Maybe (ScalarFeature x)
---   , _symbolShape :: Maybe SymbolShape
---   , _symbolFill :: Maybe ColFeature
---   , _symbolFillOpacity :: Maybe (ScalarFeature x)
---   , _symbolSize :: Maybe (ScalarFeature x)
---                        }
--- makeLenses ''Symbol
-
-
--- -- class HasCoordinates t where
--- --   x :: Lens' t (Maybe (ScalarFeature x))
 

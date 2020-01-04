@@ -39,19 +39,19 @@
 module RigelViz.Vega.Generics (sopFieldNames) where
 
 -- import Data.Char (toLower, ord)
-import Data.Char (toLower)
-import Data.Foldable (Foldable(..))
+-- import Data.Char (toLower)
+-- import Data.Foldable (Foldable(..))
 import Data.Proxy (Proxy(..))
 import qualified GHC.Generics as G
 
 -- containers
 import qualified Data.Map as M (Map, fromList)
-import qualified Data.IntMap as IM (IntMap, fromList)
+-- import qualified Data.IntMap as IM (IntMap, fromList)
 -- generics-sop
 -- import Generics.SOP (All(..), All2, Generic(..), SOP(..), NS(..), NP(..), I(..), HasDatatypeInfo(..))
-import Generics.SOP (All(..), All2, AllN, HAp, Prod, Generic(..), SOP(..), NS(..), NP(..), hcmap, hcfoldMap, hcollapse, mapIK, I(..), K(..), HasDatatypeInfo(..), DatatypeInfo(..), ConstructorInfo(..), constructorInfo, FieldInfo(..), fieldName, DatatypeName, FieldName, SListI(..))
+import Generics.SOP (Generic(..), NP(..), HasDatatypeInfo(..), ConstructorInfo(..), constructorInfo, FieldInfo(..), DatatypeName, FieldName)
 -- text
-import qualified Data.Text as T (Text, pack)
+-- import qualified Data.Text as T (Text, pack)
 
 -- | All record field names for each variant of a sum type
 --

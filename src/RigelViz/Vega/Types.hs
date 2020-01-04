@@ -13,6 +13,7 @@
 -- the JSON encoding expected by 'vega'
 -- 
 -----------------------------------------------------------------
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 module RigelViz.Vega.Types where
 
 import Data.Typeable (Typeable)
