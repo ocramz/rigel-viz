@@ -113,11 +113,12 @@ instance A.ToJSON a => A.ToJSON (Domain a) where
 data Range a =
   RangeWidth
   | RangeHeight
-  | RangeBounds a a
+  | RangeBounds { _rangeBoundsMin :: a, _rangeBoundsMax :: a}
   deriving (Eq, Show, G.Generic, Functor)
 instance A.ToJSON a => A.ToJSON (Range a)
+makeLenses ''Range
 
-data ColourRange = Plasma | Category20 | BlueOrange deriving (Show, G.Generic)
+
 
 -- ** Scale
 
@@ -139,13 +140,11 @@ instance A.ToJSON a => A.ToJSON (Scale a) where
 -- scale :: ScaleType -> Domain a -> Range a -> Scale a
 -- scale = Scale Nothing 
 
--- -- | assign a name to a scale
--- nameScale :: String -> Scale a -> Scale a
--- nameScale n = scaleName ?~ n
-
+-- | Name of the data reference used by this scale
 nameDomainDataRef :: Traversal' (Scale a) (Maybe String)
 nameDomainDataRef = scaleDomain . domainDataRef 
 
+-- | Name of the data field used by this scale
 nameDomainDataField :: Traversal' (Scale a) String
 nameDomainDataField = scaleDomain . domainDataField
 
@@ -154,19 +153,26 @@ nameDomainDataField = scaleDomain . domainDataField
 
 -- ** Scale (colour)
 
-data ColourScale = ColourScale {
-    colourScaleName :: Maybe String
-  , colourScaleType :: ColourScaleType
-                               } deriving (Eq, Show, G.Generic)
+data ColourRange = Plasma | Category20 | BlueOrange deriving (Eq, Show, G.Generic)
 
 type Col = C.Colour Double
 
+data ColourScaleType =
+  ColLinear { _colLinearScaleName :: String }
+  | ColOrdinal { _colOrdinalColours :: [Col] }
+  deriving (Eq, Show, G.Generic)
+
+data ColourScale a = ColourScale {
+    _colourScaleName :: Maybe String
+  , _colourScaleType :: ColourScaleType
+  , _colourScaleDomain :: Domain a
+  , _colourScaleRange :: ColourRange
+  } deriving (Eq, Show, G.Generic)
+makeLenses ''ColourScale
+
 -- instance A.ToJSON (C.Colour a) where
 
-data ColourScaleType =
-  ColLinear { colLinearScale :: String }
-  | ColOrdinal [Col]
-  deriving (Eq, Show, G.Generic)
+
 
 
 
@@ -180,10 +186,11 @@ data ScalarFeature x =
 makeLenses ''ScalarFeature
 instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
 
--- scale :: Traversal' (ScalarFeature x) (Scale x)
--- scale = sfScale
+-- sfConst :: Traversal' (ScalarFeature x) x
+  
+-- sfScale :: Traversal' (ScalarFeature x) (Scale x)
 
--- setSfConst k = sfConst .~ k
+
 
 nameScaleDomainDataRef :: Traversal' (ScalarFeature x) (Maybe String)
 nameScaleDomainDataRef = sfScale . nameDomainDataRef
@@ -192,10 +199,12 @@ nameScaleDomainDataField :: Traversal' (ScalarFeature x) String
 nameScaleDomainDataField = sfScale . nameDomainDataField
 
 -- | A ColFeature is a colour annotation, either constant or tied to a data scale
-data ColFeature =
-    CFConst Col -- ^ constant
-  | CFFromScale ColourScale -- ^ derived from a 'scale'
+data ColFeature x =
+    CFConst { _cfConst :: Col} -- ^ constant
+  | CFFromScale { _cfScale :: ColourScale x } -- ^ derived from a 'scale'
   deriving (Eq, Show, G.Generic)
+makeLenses ''ColFeature
+
 -- instance A.ToJSON ColFeature where  -- FIXME
 
 
@@ -213,8 +222,13 @@ makeLenses ''GeomFeatures
 geomFeatures :: GeomFeatures a
 geomFeatures = GeomFeatures M.empty
 
-x :: Traversal' (GeomFeatures x) (ScalarFeature x)
-x = gfMap . at X . _Just
+gfX, gfY, gfX2, gfY2, gfWidth, gfHeight :: Traversal' (GeomFeatures x) (ScalarFeature x)
+gfX = gfMap . at X . _Just
+gfY = gfMap . at Y . _Just
+gfX2 = gfMap . at X2 . _Just
+gfY2 = gfMap . at Y2 . _Just
+gfWidth = gfMap . at Width . _Just
+gfHeight = gfMap . at Height . _Just
 
 
 
@@ -245,27 +259,35 @@ data MarkType = Rect | RectC | Symbol { _markSymbolShape :: SymbolShape } derivi
 data ColFeatureTy = MarkFillCol | StrokeCol deriving (Eq, Show, Ord)
 
 -- color features of a mark
-newtype ColFeatures = ColFeatures { _cfMap :: M.Map ColFeatureTy ColFeature } deriving (Eq, Show)
+newtype ColFeatures x = ColFeatures { _cfMap :: M.Map ColFeatureTy (ColFeature x) } deriving (Eq, Show)
 makeLenses ''ColFeatures
 
-markFillCol, markStrokeCol :: Traversal' ColFeatures ColFeature
+markFillCol, markStrokeCol :: Traversal' (ColFeatures x) (ColFeature x)
 markFillCol = cfMap . at MarkFillCol . _Just
 markStrokeCol = cfMap . at StrokeCol . _Just
 
 
-colFeatures :: ColFeatures
+colFeatures :: ColFeatures x
 colFeatures = ColFeatures M.empty
 
 -- | Each mark is associated with a few (>= 0) geometry and colour features
 data Mark x = Mark {
     _mark :: MarkType
   , _geom :: GeomFeatures x -- ^ Geometry features
-  , _col :: ColFeatures -- ^ Colour features
-  } deriving (Eq, Show, G.Generic, Functor)
+  , _col :: ColFeatures x -- ^ Colour features
+  } deriving (Eq, Show, G.Generic)
 makeLenses ''Mark
 
 circle :: Mark x
 circle = Mark (Symbol Circle) geomFeatures colFeatures
+
+x, y :: Traversal' (Mark x) (ScalarFeature x)
+x = geom . gfX
+y = geom . gfY
+
+fill, stroke :: Traversal' (Mark x) (ColFeature x)
+fill = col . markFillCol
+stroke = col . markStrokeCol
 
 
 
