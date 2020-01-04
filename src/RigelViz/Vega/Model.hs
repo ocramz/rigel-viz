@@ -100,8 +100,8 @@ u <||> v = undefined
 -- ** Domain
   
 data Domain a =
-    DomainValues [a]
-  | DomainData {
+     DomainValues [a]
+   | DomainData {
         _domainDataRef :: Maybe String
       , _domainDataField :: String 
       } deriving (Eq, Show, G.Generic, Functor)
@@ -133,7 +133,7 @@ data Scale a = Scale {
   , _scaleType :: ScaleType
   , _scaleDomain :: Domain a
   , _scaleRange :: Range a 
-                   } deriving (Eq, Show, G.Generic, Functor)
+  } deriving (Eq, Show, G.Generic, Functor)
 makeLenses ''Scale
 instance A.ToJSON a => A.ToJSON (Scale a) where
 
