@@ -153,20 +153,20 @@ nameDomainDataField = scaleDomain . domainDataField
 
 -- ** Scale (colour)
 
-data ColourRange = Plasma | Category20 | BlueOrange deriving (Eq, Show, G.Generic)
+data ColourPalette = Plasma | Category20 | BlueOrange deriving (Eq, Show, G.Generic)
 
 type Col = C.Colour Double
 
 data ColourScaleType =
-  ColLinear { _colLinearScaleName :: String }
-  | ColOrdinal { _colOrdinalColours :: [Col] }
+  ColLinear { _colLinearScaleRange :: ColourPalette }
+  | ColOrdinal { _colOrdinalScaleRange :: [Col] }
   deriving (Eq, Show, G.Generic)
+makeLenses ''ColourScaleType
 
 data ColourScale a = ColourScale {
     _colourScaleName :: Maybe String
   , _colourScaleType :: ColourScaleType
   , _colourScaleDomain :: Domain a
-  , _colourScaleRange :: ColourRange
   } deriving (Eq, Show, G.Generic)
 makeLenses ''ColourScale
 
@@ -278,12 +278,17 @@ data Mark x = Mark {
   } deriving (Eq, Show, G.Generic)
 makeLenses ''Mark
 
-circle :: Mark x
+circle, rectC :: Mark x
 circle = Mark (Symbol Circle) geomFeatures colFeatures
+rectC = Mark RectC geomFeatures colFeatures
 
-x, y :: Traversal' (Mark x) (ScalarFeature x)
+x, y, x2, y2, width, height :: Traversal' (Mark x) (ScalarFeature x)
 x = geom . gfX
 y = geom . gfY
+x2 = geom . gfX2
+y2 = geom . gfY2
+width = geom . gfWidth
+height = geom . gfHeight
 
 fill, stroke :: Traversal' (Mark x) (ColFeature x)
 fill = col . markFillCol
