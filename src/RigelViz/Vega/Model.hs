@@ -4,10 +4,10 @@
 {-# language DeriveGeneric #-}
 {-# language DeriveFunctor #-}
 {-# language GeneralizedNewtypeDeriving, DeriveTraversable #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
+-- {-# OPTIONS_GHC -Wno-unused-imports #-}
 module RigelViz.Vega.Model where
 
-import Control.Applicative (liftA2)
+-- import Control.Applicative (liftA2)
 import Data.Foldable (Foldable(..))
 import qualified GHC.Generics as G (Generic(..))
 
