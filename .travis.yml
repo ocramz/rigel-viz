@@ -14,7 +14,6 @@ addons:
 # change flags or use --stack-yaml to point to a different file.
 env:
   jobs:
-    # - ARGS="--resolver nightly-2019-12-30" # 8.8.1
     - ARGS="--resolver lts-14.19" # 8.6.5
     - ARGS="--resolver lts-12.26" # 8.4.4
     - ARGS="--resolver lts-11.22" # 8.2.2
