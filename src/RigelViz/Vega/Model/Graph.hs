@@ -20,7 +20,7 @@ import qualified Data.Aeson as A (ToJSON(..))
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (RGB(..), toSRGB, sRGB24show)
 -- containers
-import qualified Data.Map as M (Map, fromList, insert, insertWith, empty, lookup)
+import qualified Data.Map as M (Map, fromList, insert, fromListWith, empty, lookup)
 import qualified Data.Set as S (Set)
 -- generics-sop
 import Generics.SOP.GGP (GDatatypeInfo)
@@ -347,19 +347,22 @@ linearWd = linear RangeWidth
 
 
 
+
+-- problem : edit all entries of 'b0 . a1' that are == Nothing into 'Just x' where x is taken sequentially from a list of strings
+
 data A = A1 { _a1 :: Maybe String }
   | A2 { _a2 :: Int }
   deriving (Show)
 makeLenses ''A
 
-newtype B = B { _b :: M.Map String A } deriving (Show)
+newtype B = B { _b :: M.Map String [A] } deriving (Show)
 makeLenses ''B
 
 
-b0 = B $ M.fromList [("a", ab0), ("b", ab1), ("a", ab2)] where
-  ab0 = A1 (Just "x")
-  ab1 = A2 42
-  ab2 = A1 (Just "z")
+b0 = B $ M.fromListWith (<>) [("a", ab0), ("b", ab1), ("a", ab2)] where
+  ab0 = [A1 Nothing]
+  ab1 = [A2 42]
+  ab2 = [A1 (Just "z")]
 
 
 mapAccumM :: (Traversable t, Monad m) =>
