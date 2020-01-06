@@ -13,14 +13,14 @@ import qualified GHC.Generics as G (Generic(..))
 
 -- aeson
 import qualified Data.Aeson as A (ToJSON(..))
--- algebraic-graphs
-import Algebra.Graph (Graph(..))
-import Algebra.Graph.AdjacencyMap (AdjacencyMap, adjacencyMap, empty, vertex, edge, connect, overlay, hasVertex, hasEdge, preSet, postSet)
+-- -- algebraic-graphs
+-- import Algebra.Graph (Graph(..))
+-- import Algebra.Graph.AdjacencyMap (AdjacencyMap, adjacencyMap, empty, vertex, edge, connect, overlay, hasVertex, hasEdge, preSet, postSet)
 -- colour
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (RGB(..), toSRGB, sRGB24show)
 -- containers
-import qualified Data.Map as M (Map, fromList, insert, empty, lookup)
+import qualified Data.Map as M (Map, fromList, insert, insertWith, empty, lookup)
 import qualified Data.Set as S (Set)
 -- generics-sop
 import Generics.SOP.GGP (GDatatypeInfo)
@@ -28,7 +28,7 @@ import Generics.SOP.GGP (GDatatypeInfo)
 import Lens.Micro (Lens, Lens', Traversal, Traversal', (&))
 import Lens.Micro (ASetter, (.~), (?~)) -- setters
 import Lens.Micro ((%~)) -- modifiers
-import Lens.Micro (Getting, (^.)) -- getters
+import Lens.Micro (Getting, (^.), (^..)) -- getters
 import Lens.Micro (traverseOf, traversed, _Just) -- traversals
 -- microlens-ghc   -- traversals for 'containers' et al.
 import Lens.Micro.GHC (at, ix) -- the respective typeclasses are not exported
@@ -60,6 +60,28 @@ the compiler then populates all scale, axis, dataset names accordingly, while pe
 -}
 
 
+-- * Dataset
+
+data Dataset d = Dataset {
+    _datasetRows :: [d]
+  , _datasetName :: String
+  } deriving (Eq, Ord, Show, G.Generic)
+makeLenses ''Dataset
+
+-- -- | Based on 'sopFieldNames': two Datasets are equal iff they share the same set of column names.
+-- --
+-- -- This is different from requiring all datasets _content_ to be equal, in that e.g. it doesn't entail traversing all dataset rows 
+-- instance (G.Generic d, GDatatypeInfo d) => Eq (Dataset d) where
+--   Dataset (ds1:_) == Dataset (ds2:_) = fields ds1 == fields ds2
+--   _ == _ = False
+
+hasField :: (G.Generic d, GDatatypeInfo d) => String -> Dataset d -> Bool
+hasField df (Dataset d _) = df `elem` fields (head d)
+
+fields :: (G.Generic d, GDatatypeInfo d) => d -> [String]
+fields = fold . sopFieldNames
+
+
 
 -- * Scale
 
@@ -75,14 +97,15 @@ the compiler then populates all scale, axis, dataset names accordingly, while pe
 
 -- ** Domain
 
-data Domain a =
+data Domain d a =
      DomainValues { _domainValues :: [a] }
    | DomainData {
-        _domainDataRef :: String
-      , _domainDataField :: String 
+        -- _domainDataRef :: String
+        _domainData :: Dataset d
+      , _domainDataField :: String
       } deriving (Eq, Ord, Show, G.Generic, Functor)
 makeLenses ''Domain
-instance A.ToJSON a => A.ToJSON (Domain a) where
+-- instance A.ToJSON a => A.ToJSON (Domain a) where
 
 -- ** Range
   
@@ -102,24 +125,27 @@ data ScaleType =
   deriving (Eq, Ord, Show, G.Generic)
 instance A.ToJSON ScaleType where
 
-data Scale a = Scale {
+data Scale d a = Scale {
     _scaleName :: Maybe String -- initially Nothing
   , _scaleType :: ScaleType
-  , _scaleDomain :: Domain a
+  , _scaleDomain :: Domain d a
   , _scaleRange :: Range a 
   } deriving (Eq, Ord, Show, G.Generic, Functor)
 makeLenses ''Scale
-instance A.ToJSON a => A.ToJSON (Scale a) where
+-- instance A.ToJSON a => A.ToJSON (Scale a) where
 
 -- scale :: ScaleType -> Domain a -> Range a -> Scale a
 -- scale = Scale Nothing 
 
--- | Name of the data reference used by this scale
-nameDomainDataRef :: Traversal' (Scale a) String
-nameDomainDataRef = scaleDomain . domainDataRef 
+-- -- | Name of the data reference used by this scale
+-- nameDomainDataRef :: Traversal' (Scale a) String
+-- nameDomainDataRef = scaleDomain . domainDataRef
+
+scaleDataset :: Traversal' (Scale d a) (Dataset d)
+scaleDataset = scaleDomain . domainData
 
 -- | Name of the data field used by this scale
-nameDomainDataField :: Traversal' (Scale a) String
+nameDomainDataField :: Traversal' (Scale d a) String
 nameDomainDataField = scaleDomain . domainDataField
 
 
@@ -131,7 +157,7 @@ data ColourPalette =
   Plasma | Category20 | BlueOrange deriving (Eq, Ord, Show, G.Generic)
 
 newtype Col = Col (C.Colour Double) deriving (Eq, Show)
--- | Shortcut : RGB colours are really a lattice, not a totally ordered field
+-- | RGB colours are really a lattice, not a totally ordered field (FIXME)
 instance Ord Col where
   (Col c1) <= (Col c2) = colNorm c1 <= colNorm c2
 
@@ -147,10 +173,10 @@ data ColourScaleType =
   deriving (Eq, Ord, Show, G.Generic)
 makeLenses ''ColourScaleType
 
-data ColourScale a = ColourScale {
+data ColourScale d a = ColourScale {
     _colourScaleName :: Maybe String
   , _colourScaleType :: ColourScaleType
-  , _colourScaleDomain :: Domain a
+  , _colourScaleDomain :: Domain d a
   } deriving (Eq, Ord, Show, G.Generic)
 makeLenses ''ColourScale
 
@@ -163,29 +189,25 @@ makeLenses ''ColourScale
 -- ** Features : can be either constant or referring to a scale
 
 -- | A ScalarFeature could be a coordinate or a size annotation, either constant or tied to a data scale
-data ScalarFeature x =
+data ScalarFeature d x =
     GFConst { _sfConst :: x } -- ^ constant
-  | GFFromScale { _sfScale :: Scale x } -- ^ derived from a 'scale'
+  | GFFromScale { _sfScale :: Scale d x } -- ^ derived from a 'scale'
   deriving (Eq, Ord, Show, G.Generic, Functor)
 makeLenses ''ScalarFeature
-instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
-
--- sfConst :: Traversal' (ScalarFeature x) x
-  
--- sfScale :: Traversal' (ScalarFeature x) (Scale x)
+-- instance A.ToJSON x => A.ToJSON (ScalarFeature x) where
 
 
 
-nameScaleDomainDataRef :: Traversal' (ScalarFeature x) String
-nameScaleDomainDataRef = sfScale . nameDomainDataRef
+-- nameScaleDomainDataRef :: Traversal' (ScalarFeature x) String
+-- nameScaleDomainDataRef = sfScale . nameDomainDataRef
 
-nameScaleDomainDataField :: Traversal' (ScalarFeature x) String
+nameScaleDomainDataField :: Traversal' (ScalarFeature d x) String
 nameScaleDomainDataField = sfScale . nameDomainDataField
 
 -- | A ColFeature is a colour annotation, either constant or tied to a data scale
-data ColFeature x =
+data ColFeature d x =
     CFConst { _cfConst :: Col} -- ^ constant
-  | CFFromScale { _cfScale :: ColourScale x } -- ^ derived from a 'scale'
+  | CFFromScale { _cfScale :: ColourScale d x } -- ^ derived from a 'scale'
   deriving (Eq, Ord, Show, G.Generic)
 makeLenses ''ColFeature
 
@@ -197,16 +219,17 @@ makeLenses ''ColFeature
 -- * Geometry features
 
 data GeomFeatureTy = X | Y | X2 | Y2 | Width | Height deriving (Eq, Show, Ord)
-newtype GeomFeatures x = GeomFeatures {
-  _gfMap :: M.Map GeomFeatureTy (ScalarFeature x) } deriving (Eq, Ord, Show, Functor)
--- newtype GeomFeatures a = GeomFeatures {
---   _gfMap :: M.Map GeomFeatureTy a } deriving (Eq, Show, Functor, Foldable, Traversable)
+
+-- | Geometry features of a mark
+newtype GeomFeatures d x = GeomFeatures {
+  _gfMap :: M.Map GeomFeatureTy (ScalarFeature d x) } deriving (Eq, Ord, Show, Functor)
 makeLenses ''GeomFeatures
 
-geomFeatures :: GeomFeatures a
+-- | Empty geometry features map
+geomFeatures :: GeomFeatures d a
 geomFeatures = GeomFeatures M.empty
 
-gfX, gfY, gfX2, gfY2, gfWidth, gfHeight :: Traversal' (GeomFeatures x) (ScalarFeature x)
+gfX, gfY, gfX2, gfY2, gfWidth, gfHeight :: Traversal' (GeomFeatures d x) (ScalarFeature d x)
 gfX = gfMap . at X . _Just
 gfY = gfMap . at Y . _Just
 gfX2 = gfMap . at X2 . _Just
@@ -218,56 +241,59 @@ gfHeight = gfMap . at Height . _Just
 
 
 
+
+
+
+
 -- * Mark
 
-data Dataset d = Dataset {
-  _datasetRows :: [d]
-  , _datasetName :: String
-  } deriving (Eq, Ord, Show, G.Generic)
-makeLenses ''Dataset
+data SymbolShape = Circle | Cross | Triangle | Arrow | Wedge deriving (Eq, Show, Ord, G.Generic)
 
--- -- | Based on 'sopFieldNames': two Datasets are equal iff they share the same set of column names.
--- --
--- -- This is different from requiring all datasets _content_ to be equal, in that e.g. it doesn't entail traversing all dataset rows 
--- instance (G.Generic d, GDatatypeInfo d) => Eq (Dataset d) where
---   Dataset (ds1:_) == Dataset (ds2:_) = fields ds1 == fields ds2
---   _ == _ = False
+data MarkType =
+     Line
+   | Rect
+   | RectC 
+   | Symbol { _markSymbolShape :: SymbolShape }
+   | Text { _markText :: String }
+   deriving (Eq, Show, Ord)
 
-hasField :: (G.Generic d, GDatatypeInfo d) => String -> Dataset d -> Bool
-hasField df (Dataset d _) = df `elem` fields (head d)
-
-fields :: (G.Generic d, GDatatypeInfo d) => d -> [String]
-fields = fold . sopFieldNames
-
-data SymbolShape = Circle | Cross deriving (Eq, Show, Ord, G.Generic)
-data MarkType = Rect | RectC | Symbol { _markSymbolShape :: SymbolShape } deriving (Eq, Show, Ord)
 data ColFeatureTy = MarkFillCol | StrokeCol deriving (Eq, Ord, Show)
 
--- color features of a mark
-newtype ColFeatures x = ColFeatures { _cfMap :: M.Map ColFeatureTy (ColFeature x) } deriving (Eq, Ord, Show)
+-- | Color features of a mark
+newtype ColFeatures d x =
+  ColFeatures { _cfMap :: M.Map ColFeatureTy (ColFeature d x) } deriving (Eq, Ord, Show)
 makeLenses ''ColFeatures
 
-markFillCol, markStrokeCol :: Traversal' (ColFeatures x) (ColFeature x)
+markFillCol, markStrokeCol :: Traversal' (ColFeatures d x) (ColFeature d x)
 markFillCol = cfMap . at MarkFillCol . _Just
 markStrokeCol = cfMap . at StrokeCol . _Just
 
-
-colFeatures :: ColFeatures x
+-- | Empty colour features map
+colFeatures :: ColFeatures d x
 colFeatures = ColFeatures M.empty
 
 -- | Each mark is associated with a few (>= 0) geometry and colour features
-data Mark x = Mark {
+data Mark d x = Mark {
     _mark :: MarkType
-  , _geom :: GeomFeatures x -- ^ Geometry features
-  , _col :: ColFeatures x -- ^ Colour features
+  , _markDataFrom :: Dataset d
+  , _geom :: GeomFeatures d x -- ^ Geometry features
+  , _col :: ColFeatures d x -- ^ Colour features
   } deriving (Eq, Ord, Show, G.Generic)
 makeLenses ''Mark
 
-circle, rectC :: Mark x
-circle = Mark (Symbol Circle) geomFeatures colFeatures
-rectC = Mark RectC geomFeatures colFeatures
+-- circle, rectC :: Mark d x
+-- circle = Mark (Symbol Circle) geomFeatures colFeatures
+-- rectC = Mark RectC geomFeatures colFeatures
 
-x, y, x2, y2, width, height :: Traversal' (Mark x) (ScalarFeature x)
+encode :: MarkType -> Dataset d -> Mark d x
+encode mty d = Mark mty d geomFeatures colFeatures
+
+circle, rect :: Dataset d -> Mark d x
+circle = encode (Symbol Circle)
+rect = encode Rect
+
+
+x, y, x2, y2, width, height :: Traversal' (Mark d x) (ScalarFeature d x)
 x = geom . gfX
 y = geom . gfY
 x2 = geom . gfX2
@@ -275,7 +301,7 @@ y2 = geom . gfY2
 width = geom . gfWidth
 height = geom . gfHeight
 
-fill, stroke :: Traversal' (Mark x) (ColFeature x)
+fill, stroke :: Traversal' (Mark d x) (ColFeature d x)
 fill = col . markFillCol
 stroke = col . markStrokeCol
 
@@ -284,42 +310,66 @@ stroke = col . markStrokeCol
 
 
 
-newtype Marks x = Marks {
-    _marks :: [Mark x]
-    }
-makeLenses ''Marks
+-- newtype Marks x = Marks {
+--     _marks :: [Mark x]
+--     }
+-- makeLenses ''Marks
 
-noMarks :: Marks x
-noMarks = Marks []
-
-
+-- noMarks :: Marks x
+-- noMarks = Marks []
 
 
 
 
 
 
-data Channel d a = Channel {
-    _chDataset :: Dataset d
-  , _chScale :: Scale a
-  , _chMark :: Mark a } deriving (Eq, Show)
-makeLenses ''Channel
-
-scaleFromData :: String -- ^ name of the new scale
+scaleFromData :: ScaleType
+              -> Range a 
+              -> String -- ^ name of the new scale
               -> Dataset d
-              -> ScaleType
               -> String -- ^ name of the data field to be used
-              -> Range a
-              -> Scale a
-scaleFromData sn (Dataset _ dn) sclTy sField rg = scl
+              -> Scale d a
+scaleFromData sclTy rg sn d sField = scl
   where
     scl = Scale (Just sn) sclTy sdom rg
-    sdom = DomainData dn sField
+    sdom = DomainData d sField
+
+linear, ordinal :: Range a -> String -> Dataset d -> String -> Scale d a
+linear = scaleFromData Linear
+ordinal = scaleFromData Ordinal
+
+linearWd :: String -> Dataset d -> String -> Scale d a
+linearWd = linear RangeWidth
 
 
 
 
 
+
+
+data A = A1 { _a1 :: Maybe String }
+  | A2 { _a2 :: Int }
+  deriving (Show)
+makeLenses ''A
+
+newtype B = B { _b :: M.Map String A } deriving (Show)
+makeLenses ''B
+
+
+b0 = B $ M.fromList [("a", ab0), ("b", ab1), ("a", ab2)] where
+  ab0 = A1 (Just "x")
+  ab1 = A2 42
+  ab2 = A1 (Just "z")
+
+
+mapAccumM :: (Traversable t, Monad m) =>
+             (a -> s -> m (b, s)) -> t a -> s -> m (t b, s)
+mapAccumM f = runStateT . traverse (StateT . f)
+
+
+
+
+-- -- algebraic-graphs stuff
 
 -- data Node d a =
 --      NdData {
@@ -350,6 +400,10 @@ scaleFromData sn (Dataset _ dn) sclTy sField rg = scl
 
 -- newMark :: Mark a -> AdjacencyMap (Node d a)
 -- newMark mk = vertex $ NdMark mk
+
+
+
+
 
 
 
