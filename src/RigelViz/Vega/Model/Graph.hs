@@ -29,7 +29,7 @@ import Lens.Micro (Lens, Lens', Traversal, Traversal', (&))
 import Lens.Micro (ASetter, (.~), (?~)) -- setters
 import Lens.Micro ((%~)) -- modifiers
 import Lens.Micro (Getting, (^.), (^..)) -- getters
-import Lens.Micro (traverseOf, traversed, _Just) -- traversals
+import Lens.Micro (traverseOf, traversed, _Just, over, each) -- traversals
 -- microlens-ghc   -- traversals for 'containers' et al.
 import Lens.Micro.GHC (at, ix) -- the respective typeclasses are not exported
 -- microlens-mtl
