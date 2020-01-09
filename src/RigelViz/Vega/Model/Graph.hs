@@ -5,6 +5,7 @@
 {-# language DeriveGeneric #-}
 {-# language DeriveFunctor #-}
 {-# language GeneralizedNewtypeDeriving, DeriveTraversable #-}
+{-# language OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 module RigelViz.Vega.Model.Graph where
 
@@ -12,11 +13,15 @@ import Data.Foldable (Foldable(..))
 import qualified GHC.Generics as G (Generic(..))
 
 -- aeson
-import qualified Data.Aeson as A (ToJSON(..))
+import qualified Data.Aeson as A (ToJSON(..), encode, Value, object)
+import Data.Aeson ((.=))
 -- algebraic-graphs
 import qualified Algebra.Graph as G (Graph(..))
 import Algebra.Graph.AdjacencyMap (AdjacencyMap, adjacencyMap)
 import qualified Algebra.Graph.ToGraph as G (ToGraph(..))
+-- bytestring
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS (ByteString, toStrict, fromStrict)
 -- colour
 import qualified Data.Colour as C
 import qualified Data.Colour.SRGB as C (RGB(..), toSRGB, sRGB24show)
@@ -33,15 +38,19 @@ import Lens.Micro (Getting, (^.), (^..)) -- getters
 import Lens.Micro (traverseOf, traversed, _Just, over, each) -- traversals
 -- microlens-ghc   -- traversals for 'containers' et al.
 import Lens.Micro.GHC (at, ix) -- the respective typeclasses are not exported
--- microlens-mtl
-import Lens.Micro.Mtl ((.=), (?=), assign) -- setters
-import Lens.Micro.Mtl ((%=), zoom) -- modifiers
-import Lens.Micro.Mtl (use) -- getters
+-- -- microlens-mtl
+-- import Lens.Micro.Mtl ((.=), (?=), assign) -- setters
+-- import Lens.Micro.Mtl ((%=), zoom) -- modifiers
+-- import Lens.Micro.Mtl (use) -- getters
 -- microlens-th
 import Lens.Micro.TH
 -- mtl
 import Control.Monad.State.Class (MonadState(..), gets)
 import Control.Monad.State (State, runState, StateT(..), runStateT)
+-- text
+import qualified Data.Text as T
+-- unordered.containers
+import qualified Data.HashMap.Strict as HM
 
 import RigelViz.Vega.Generics (sopFieldNames)
 
@@ -55,7 +64,7 @@ scatter :: Scale x -> Scale x -> Mark x
 scatter xs ys =
   circle &
     geom %~ xScale xs &
-    geom %~ yScale ys
+    geom %~ yScale ys 
 
 the compiler then populates all scale, axis, dataset names accordingly, while performing checks on the input value, eg with mapAccumM
 -}
@@ -63,6 +72,16 @@ the compiler then populates all scale, axis, dataset names accordingly, while pe
 
 -- * Dataset
 
+-- encoded datasets
+newtype DS = DS {
+  _unDS :: HM.HashMap T.Text [A.Value]
+                } deriving (Show, G.Generic)
+instance A.ToJSON DS where
+  toJSON (DS dsm) = A.object [
+    "values" .= dsm 
+                             ]
+
+-- non-encoded dataset
 data Dataset d = Dataset {
     _datasetRows :: [d]
   , _datasetName :: Maybe String
@@ -86,15 +105,6 @@ fields = fold . sopFieldNames
 
 -- * Scale
 
--- -- | All the scales in current scope.
--- --
--- -- An axis requires at least one item to be present in either the X or Y list
--- -- Similarly for the legend (i.e. we need at least one colour scale)
--- data Scales a = Scales {
---   scalesX :: [Scale a]
---   , scalesY :: [Scale a]
---   , scalesCol :: [ColourScale]
---   }
 
 -- ** Domain
 
@@ -177,8 +187,10 @@ linear = fromDataField (LinearScale Lin)
 
 -- ** Scale (colour)
 
-data ColourPalette =
-  Plasma | Category20 | BlueOrange deriving (Eq, Ord, Show, G.Generic)
+data ColourPalette = Plasma
+                   | Category20
+                   | BlueOrange
+                   deriving (Eq, Ord, Show, G.Generic)
 
 newtype Col = Col (C.Colour Double) deriving (Eq, Show)
 -- | RGB colours are really a lattice, not a totally ordered field (FIXME)

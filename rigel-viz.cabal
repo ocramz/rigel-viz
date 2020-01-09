@@ -41,6 +41,7 @@ library
                      , microlens-th
                      , mtl >= 2.2.2
                      , text >= 1.2.3
+                     , unordered-containers
                      , vector >= 0.12
 
 
