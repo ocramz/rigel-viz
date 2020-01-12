@@ -24,6 +24,7 @@ library
   exposed-modules:     RigelViz
                        RigelViz.Vega
                        RigelViz.Vega.Model
+                       RigelViz.Vega.Model.Common
                        RigelViz.Vega.Model.Graph
                        RigelViz.Vega.Generics
                        RigelViz.Vega.Types
@@ -35,13 +36,13 @@ library
                      , aeson >= 1.2.4
                      , exceptions >= 0.8.3
                      , generics-sop >= 0.3.2
-                     , microlens
-                     , microlens-ghc
-                     , microlens-mtl
-                     , microlens-th
+                     , microlens >= 0.4.10
+                     , microlens-ghc >= 0.4.10
+                     , microlens-mtl >= 0.1.11
+                     , microlens-th >= 0.4.2.3
                      , mtl >= 2.2.2
                      , text >= 1.2.3
-                     , unordered-containers
+                     , unordered-containers >= 0.2.10
                      , vector >= 0.12
 
 
