@@ -5,9 +5,8 @@
 {-# language DeriveFunctor #-}
 {-# language GeneralizedNewtypeDeriving, DeriveTraversable #-}
 {-# language OverloadedStrings #-}
-{-# language GADTs #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-module RigelViz.Vega.Model.Graph where
+module RigelViz.Vega.Model.Tree where
 
 import Data.Foldable (Foldable(..))
 import qualified GHC.Generics as G (Generic(..))
@@ -16,9 +15,9 @@ import qualified GHC.Generics as G (Generic(..))
 import qualified Data.Aeson as A (ToJSON(..), encode, Value, object)
 import Data.Aeson ((.=))
 -- algebraic-graphs
-import qualified Algebra.Graph as GA (Graph, connect, empty, overlay, vertex, edge)
+import qualified Algebra.Graph as G (Graph(..))
 import Algebra.Graph.AdjacencyMap (AdjacencyMap, adjacencyMap)
-import qualified Algebra.Graph.ToGraph as GA (ToGraph(..))
+import qualified Algebra.Graph.ToGraph as G (ToGraph(..))
 -- bytestring
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS (ByteString, toStrict, fromStrict)
@@ -75,13 +74,6 @@ the compiler then populates all scale, axis, dataset names accordingly, while pe
 -}
 
 
-
-
-
-
-
-
-
 -- * Dataset
 
 -- encoded datasets
@@ -97,15 +89,8 @@ instance A.ToJSON DS where
 data Dataset d = Dataset {
     _datasetRows :: [d]
   , _datasetName :: String
-  } deriving (Show, G.Generic)
+  } deriving (Eq, Ord, Show, G.Generic)
 makeLenses ''Dataset
-
--- | NB : Two datasets are equal _iff their names_ are equal. This ensures that equality comparison doesn't traverse all rows but is also very brittle. 
-instance Eq (Dataset d) where
-  (Dataset _ dn1) == (Dataset _ dn2) = dn1 == dn2
--- | Ordering of datasets by name only
-instance Ord (Dataset d) where
-  (Dataset _ dn1) <= (Dataset _ dn2) = dn1 <= dn2
 
 
 
@@ -132,14 +117,15 @@ fields = fold . sopFieldNames
 data Domain a =
      DomainValues { _domainValues :: [a] }
    | DomainData {
-        _domainDataRef :: String 
+        _domainDataRef :: Maybe String -- initially Nothing
+        -- _domainData :: Dataset d
       , _domainDataField :: String
       } deriving (Eq, Ord, Show, G.Generic, Functor)
 makeLenses ''Domain
 
--- -- | DomainData
--- domainData0 :: String -> Domain a
--- domainData0 = DomainData Nothing 
+-- | DomainData
+domainData0 :: String -> Domain a
+domainData0 = DomainData Nothing 
 
 -- instance A.ToJSON a => A.ToJSON (Domain a) where
 
@@ -159,21 +145,21 @@ makeLenses ''Scale
 -- instance A.ToJSON a => A.ToJSON (Scale a) where
 
 -- | Name of the data ref used by this scale
-scaleDomainDataRef :: Traversal' (Scale a) String
+scaleDomainDataRef :: Traversal' (Scale a) (Maybe String)
 scaleDomainDataRef = scaleDomain . domainDataRef
 -- | Name of the data field used by this scale
 scaleDomainDataField :: Traversal' (Scale a) String
 scaleDomainDataField = scaleDomain . domainDataField
 
 
--- scale0 :: ScaleType -> Domain a -> Range a -> Scale a
--- scale0 = Scale Nothing
+scale0 :: ScaleType -> Domain a -> Range a -> Scale a
+scale0 = Scale Nothing
 
--- fromDataField :: ScaleType -> String -> Range a -> Scale a
--- fromDataField sty f = scale0 sty (domainData0 f)
+fromDataField :: ScaleType -> String -> Range a -> Scale a
+fromDataField sty f = scale0 sty (domainData0 f)
 
--- linear :: String -> Range a -> Scale a
--- linear = fromDataField (LinearScale Lin)
+linear :: String -> Range a -> Scale a
+linear = fromDataField (LinearScale Lin)
 
 
 
@@ -323,16 +309,16 @@ stroke = col . markStrokeCol
 
 
 
--- scaleFromData :: ScaleType
---               -> Range a 
---               -> String -- ^ name of the new scale
---               -> Maybe String -- ^ dataset reference
---               -> String -- ^ name of the data field to be used
---               -> Scale a
--- scaleFromData sclTy rg sn d sField = scl
---   where
---     scl = Scale (Just sn) sclTy sdom rg
---     sdom = DomainData d sField
+scaleFromData :: ScaleType
+              -> Range a 
+              -> String -- ^ name of the new scale
+              -> Maybe String -- ^ dataset reference
+              -> String -- ^ name of the data field to be used
+              -> Scale a
+scaleFromData sclTy rg sn d sField = scl
+  where
+    scl = Scale (Just sn) sclTy sdom rg
+    sdom = DomainData d sField
 
 -- -- linear, ordinal :: Range a -> String -> Dataset d -> String -> Scale a
 -- linear = scaleFromData Linear
@@ -355,67 +341,4 @@ mapAccumM :: (Traversable t, Monad m) =>
              (a -> s -> m (b, s)) -> t a -> s -> m (t b, s)
 mapAccumM f = runStateT . traverse (StateT . f)
 
-
-
-
--- algebraic-graphs stuff
-
-data Node d a =
-     NdData {
-       _ndDataset :: Dataset d
-               }
-   | NdScale {
-       _ndScale :: Scale a
-           }
-   | NdMark {
-       _ndMark :: Mark a
-            }
-   deriving (Eq, Ord, Show, G.Generic)
-makeLenses ''Node
-
-
-data Supply d a = Supply {
-    _dsSupply :: !Int
-  , _scaleSupply :: !Int
-  , _graph :: GA.Graph (Node d a) }
-makeLenses ''Supply
-
-supplyInit :: Supply d a
-supplyInit = Supply 0 0 GA.empty
-
-newtype G m d a b = G { unG :: StateT (Supply d a) m b }
-  deriving (Functor, Applicative, Monad, MonadState (Supply d a))
-
-runG :: G m d a b -> Supply d a -> m (b, Supply d a)
-runG app = runStateT (unG app) 
-
-
-datasetNode :: Dataset d -> GA.Graph (Node d a)
-datasetNode = GA.vertex . NdData 
-
-
-
-
-
-
-
-
-
-
-
--- problem : edit all entries of 'b0 . a1' that are == Nothing into 'Just x' where x is taken sequentially from a list of strings
-
--- data A = A1 { _a1 :: Maybe String }
---   | A2 { _a2 :: Int }
---   deriving (Show)
--- makeLenses ''A
-
--- newtype B = B { _b :: M.Map String [A] } deriving (Show)
--- makeLenses ''B
-
-
--- b0 = B $ M.fromListWith (<>) [("a", ab0), ("b", ab1), ("a", ab2)] where
---   ab0 = [A1 Nothing]
---   ab1 = [A2 42]
---   ab2 = [A1 (Just "z")]
 
