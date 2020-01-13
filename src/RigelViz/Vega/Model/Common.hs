@@ -18,7 +18,7 @@ import qualified Data.Colour.SRGB as C (RGB(..), toSRGB, sRGB24show)
 import Lens.Micro.TH (makeLenses)
 
 -- ** Range
-  
+
 data Range a = RangeWidth
              | RangeHeight
              | RangeBounds { _rangeBoundsMin :: a, _rangeBoundsMax :: a}
@@ -39,10 +39,21 @@ data DiscreteScaleTy = Ordinal
 instance A.ToJSON LinearScaleTy where
 instance A.ToJSON DiscreteScaleTy where
 
-data ScaleType = LinearScale LinearScaleTy
-               | DiscreteScale DiscreteScaleTy -- ^ discrete, ordered values
-               deriving (Eq, Ord, Show, G.Generic)
-instance A.ToJSON ScaleType where
+data ScaleTy = LinearScale LinearScaleTy
+             | DiscreteScale DiscreteScaleTy -- ^ discrete, ordered values
+             deriving (Eq, Ord, Show, G.Generic)
+instance A.ToJSON ScaleTy where
+
+
+
+
+  
+-- | this could be used as key in a key-value map in order to ensure uniqueness of spatial scale types (i.e. "a single linear scale over the X axis"), such that multiple e.g. marks can look it up by "type" rather than by name string
+data ScaleAxis = ScaleX ScaleTy
+               | ScaleY ScaleTy
+               deriving (Eq, Ord, Show)
+
+
 
 
 

@@ -14,7 +14,7 @@ import qualified GHC.Generics as G (Generic(..))
 
 -- aeson
 import qualified Data.Aeson as A (ToJSON(..), encode, Value, object)
-import Data.Aeson ((.=))
+import qualified Data.Aeson as A ((.=))
 -- algebraic-graphs
 import qualified Algebra.Graph as GA (Graph, connect, empty, overlay, vertex, edge)
 import Algebra.Graph.AdjacencyMap (AdjacencyMap, adjacencyMap)
@@ -38,10 +38,10 @@ import Lens.Micro (Getting, (^.), (^..)) -- getters
 import Lens.Micro (traverseOf, traversed, _Just, over, each) -- traversals
 -- microlens-ghc   -- traversals for 'containers' et al.
 import Lens.Micro.GHC (at, ix) -- the respective typeclasses are not exported
--- -- microlens-mtl
--- import Lens.Micro.Mtl ((.=), (?=), assign) -- setters
--- import Lens.Micro.Mtl ((%=), zoom) -- modifiers
--- import Lens.Micro.Mtl (use) -- getters
+-- microlens-mtl
+import Lens.Micro.Mtl ((.=), (?=), assign) -- setters
+import Lens.Micro.Mtl ((%=), zoom) -- modifiers
+import Lens.Micro.Mtl (use) -- getters
 -- microlens-th
 import Lens.Micro.TH
 -- mtl
@@ -54,7 +54,7 @@ import qualified Data.HashMap.Strict as HM
 
 import RigelViz.Vega.Generics (sopFieldNames)
 
-import RigelViz.Vega.Model.Common (Range(..), ScaleType(..), LinearScaleTy(..), DiscreteScaleTy(..))
+import RigelViz.Vega.Model.Common (Range(..), ScaleTy(..), LinearScaleTy(..), DiscreteScaleTy(..), ScaleAxis(..))
 import RigelViz.Vega.Model.Common (Col(..), ColourScaleTy(..), ColFeatureTy(..))
 import RigelViz.Vega.Model.Common (GeomFeatureTy(..))
 import RigelViz.Vega.Model.Common (SymbolShape(..), MarkTy(..))
@@ -90,7 +90,7 @@ newtype DS = DS {
                 } deriving (Show, G.Generic)
 instance A.ToJSON DS where
   toJSON (DS dsm) = A.object [
-    "values" .= dsm 
+    "values" A..= dsm 
                              ]
 
 -- non-encoded dataset
@@ -151,7 +151,7 @@ makeLenses ''Domain
 
 data Scale a = Scale {
     _scaleName :: Maybe String -- initially Nothing
-  , _scaleType :: ScaleType
+  , _scaleType :: ScaleTy
   , _scaleDomain :: Domain a
   , _scaleRange :: Range a 
   } deriving (Eq, Ord, Show, G.Generic, Functor)
@@ -372,6 +372,9 @@ data Node d a =
             }
    deriving (Eq, Ord, Show, G.Generic)
 makeLenses ''Node
+
+newtype Scales a = Scales { _scales :: M.Map ScaleAxis (Scale a)}
+makeLenses ''Scales
 
 
 data Supply d a = Supply {
