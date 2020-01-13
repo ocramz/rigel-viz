@@ -53,7 +53,7 @@ import qualified Data.HashMap.Strict as HM
 
 import RigelViz.Vega.Generics (sopFieldNames)
 
-import RigelViz.Vega.Model.Common (Range(..), ScaleType(..), LinearScaleTy(..), DiscreteScaleTy(..))
+import RigelViz.Vega.Model.Common (Range(..), ScaleTy(..), LinearScaleTy(..), DiscreteScaleTy(..))
 import RigelViz.Vega.Model.Common (Col(..), ColourScaleTy(..), ColFeatureTy(..))
 import RigelViz.Vega.Model.Common (GeomFeatureTy(..))
 import RigelViz.Vega.Model.Common (SymbolShape(..), MarkTy(..))
@@ -137,7 +137,7 @@ domainData0 = DomainData Nothing
 
 data Scale a = Scale {
     _scaleName :: Maybe String -- initially Nothing
-  , _scaleType :: ScaleType
+  , _scaleType :: ScaleTy
   , _scaleDomain :: Domain a
   , _scaleRange :: Range a 
   } deriving (Eq, Ord, Show, G.Generic, Functor)
@@ -152,10 +152,10 @@ scaleDomainDataField :: Traversal' (Scale a) String
 scaleDomainDataField = scaleDomain . domainDataField
 
 
-scale0 :: ScaleType -> Domain a -> Range a -> Scale a
+scale0 :: ScaleTy -> Domain a -> Range a -> Scale a
 scale0 = Scale Nothing
 
-fromDataField :: ScaleType -> String -> Range a -> Scale a
+fromDataField :: ScaleTy -> String -> Range a -> Scale a
 fromDataField sty f = scale0 sty (domainData0 f)
 
 linear :: String -> Range a -> Scale a
@@ -309,7 +309,7 @@ stroke = col . markStrokeCol
 
 
 
-scaleFromData :: ScaleType
+scaleFromData :: ScaleTy
               -> Range a 
               -> String -- ^ name of the new scale
               -> Maybe String -- ^ dataset reference
